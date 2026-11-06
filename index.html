@@ -716,7 +716,7 @@ function formHTML(ctx) {
   const fromList = type === 'ikeep' ? ctx.item.owners : M;
   let h = '<form id="f" novalidate>';
   if (L.item) {
-    const ph = type === 'order' || type === 'buy' ? '例：魔法卷軸(鎧甲護持)' : '打幾個字找百科名稱，例：31樓';
+    const ph = type === 'order' || type === 'buy' ? '打幾個字找官方名稱，例：鎧甲' : '打幾個字找官方名稱，例：31樓';
     h += group('', `<label class="cell field"><span class="k">${L.item}</span><input id="f-item" type="text" maxlength="30" autocomplete="off" placeholder="${ph}" value="${esc(d.item)}"></label><div class="cell sugg" id="f-sugg-cell" hidden><div class="sugg-h" id="f-sugg-h"></div><div class="qchips" id="f-sugg"></div></div>`, '<span id="f-item-hint"></span>');
   }
   if (type === 'isell') h += `<p class="foot tight">有份：${esc(ctx.item.owners.join('、'))}（新增時填的），賣掉的錢照這個分。</p>`;
@@ -806,7 +806,7 @@ function refresh(ctx) {
       q('f-sugg-h').textContent = s.label;
       q('f-sugg-cell').hidden = !s.list.length;
     }
-    q('f-item-hint').textContent = !t ? '' : OFFICIAL_SET.has(t) ? '百科正式名稱 ✓' : recentNames(ctx.type).includes(t) ? '' : '百科裡沒有這個名稱，還是可以照樣記。';
+    q('f-item-hint').textContent = !t ? '' : OFFICIAL_SET.has(t) ? '官方正式名稱 ✓' : recentNames(ctx.type).includes(t) ? '' : '官方名稱裡找不到這個，還是可以照樣記。';
   }
   if (q('f-unit')) {
     q('f-unit').textContent = d.cur === 'tb' ? '天幣' : '元';
@@ -1034,7 +1034,7 @@ function suggestNames(type, v) {
   recent.filter(hit).forEach(push);
   OFFICIAL.filter(n => n.startsWith(q)).forEach(push);
   OFFICIAL.filter(hit).forEach(push);
-  return { label: out.length ? '點一下就填好（百科正式名稱優先用）' : '', list: out.slice(0, 8) };
+  return { label: out.length ? '點一下就填好（優先用官方正式名稱）' : '', list: out.slice(0, 8) };
 }
 // 剛記下的那幾筆，按「復原」時要作廢的順序：後記的先作廢；跟帳一起記的東西，後台會跟著作廢
 const undoOf = p => {
