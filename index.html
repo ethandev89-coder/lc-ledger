@@ -232,6 +232,23 @@ button.cell { border: 0; background: none; text-align: left; cursor: pointer; }
   background: var(--hud); color: var(--on-color); font-size: 15px; font-weight: 500; text-align: center;
   -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
 }
+.toast { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.toast-btn { flex: none; min-height: 34px; padding: 0 14px; border: 0; border-radius: 10px; background: rgba(255, 255, 255, .2); color: var(--on-color); font-size: 15px; font-weight: 700; cursor: pointer; }
+.ohead { width: 100%; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; }
+.ohead:active { opacity: .6; }
+.tip { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; padding: 14px 16px; border-radius: 14px; background: var(--blue-tint); }
+.tip .main { gap: 4px; }
+.tip .t { font-weight: 600; }
+.tip .s { line-height: 1.45; }
+.cell.sugg { display: block; }
+.sugg-h { margin-bottom: 8px; font-size: 13px; color: var(--label-2); }
+.ptr { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 8px); left: 50%; z-index: 15; transform: translateX(-50%); padding: 6px 14px; border-radius: 16px; background: var(--hud); color: var(--on-color); font-size: 13px; font-weight: 600; pointer-events: none; }
+@keyframes slideL { from { transform: translateX(28px); opacity: .35; } to { transform: none; opacity: 1; } }
+@keyframes slideR { from { transform: translateX(-28px); opacity: .35; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: no-preference) {
+  .slide-l { animation: slideL .22s ease-out; }
+  .slide-r { animation: slideR .22s ease-out; }
+}
 </style>
 </head>
 <body>
@@ -257,7 +274,9 @@ button.cell { border: 0; background: none; text-align: left; cursor: pointer; }
   <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" tabindex="-1"></section>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<div class="ptr" id="ptr" aria-hidden="true" hidden>往下拉更新</div>
 
+<script src="items.js"></script>
 <script>
 (() => {
 'use strict';
@@ -274,6 +293,16 @@ const newId = p => p + Date.now().toString(36) + Math.random().toString(36).slic
 // 同一個表單沒存成功再按一次時，沿用同一組編號，後台就不會記兩次
 const idFor = (ctx, slot) => { ctx.ids = ctx.ids || {}; return ctx.ids[slot] || (ctx.ids[slot] = newId(slot === 'i' ? 'i' : 'e')); };
 const S = { me: '', tab: 'ledger', seen: {}, entries: [], items: [], loaded: false, error: '' };
+const TABS = ['ledger', 'items', 'log'];
+const UA = navigator.userAgent || '';
+const IS_IOS = /iPhone|iPad|iPod/.test(UA) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(UA));
+const IS_ANDROID = /Android/i.test(UA);
+// 從主畫面的圖示打開（沒有瀏覽器的網址列）
+const STANDALONE = navigator.standalone === true || !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+const A2HS_KEY = 'zhangben-a2hs-ok';
+// 官方百科的物品名稱（items.js）；打字時拿來提示正式名稱
+const OFFICIAL = Array.isArray(window.OFFICIAL_ITEMS) ? window.OFFICIAL_ITEMS : [];
+const OFFICIAL_SET = new Set(OFFICIAL);
 
 function initKey() {
   const m = location.hash.match(/k=([A-Za-z0-9_-]+)/);
@@ -522,6 +551,7 @@ const ICON = {
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   bag: '<path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
   bell: '<path d="M6 10a6 6 0 0 1 12 0c0 5.5 2.5 7 2.5 7h-17S6 15.5 6 10z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+  plus: '<rect x="4" y="4" width="16" height="16" rx="4.5"/><path d="M12 8.5v7M8.5 12h7"/>',
 };
 const ico = (n, c) => `<span class="ic" style="background:var(--c-${c})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n]}</svg></span>`;
 const CHEV = '<svg class="chev" viewBox="0 0 8 14" width="8" height="14" aria-hidden="true"><path d="M1.5 1.5L6.5 7l-5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -534,6 +564,16 @@ const CHIPS = { tb: [[10000, '+1萬'], [100000, '+10萬'], [1000000, '+100萬'],
 const chipsHTML = cur => CHIPS[cur].map(([v, l]) => `<button class="qchip" type="button" data-act="addamt" data-v="${v}">${l}</button>`).join('') + '<button class="qchip" type="button" data-act="addamt" data-v="0">清除</button>';
 const stateHTML = (t, s, retry) => group('', `<div class="cell"><span class="main"><span class="t">${esc(t)}</span><span class="s">${esc(s)}</span></span></div>${retry ? '<button class="cell tap act" type="button" data-act="reload">再試一次</button>' : ''}`);
 
+/* ---------- 第一次用手機瀏覽器打開：教怎麼加到主畫面 ---------- */
+function a2hsTip() {
+  if (STANDALONE || !(IS_IOS || IS_ANDROID)) return '';
+  try { if (localStorage.getItem(A2HS_KEY)) return ''; } catch (_) {}
+  const how = / Line\//i.test(UA) ? '你現在是在 LINE 裡面打開的，先從 LINE 的選單改用 Safari（Android 用 Chrome）開啟，再加到主畫面。'
+    : IS_IOS ? '按 Safari 的「分享」（找不到就先按「⋯」）→「加入主畫面」。'
+    : '按 Chrome 右上角的「⋮」→「加到主畫面」。';
+  return `<div class="tip" role="note">${ico('plus', 'blue')}<div class="main"><span class="t">把帳本加到主畫面</span><span class="s">${how}以後點桌面上的「帳」就能直接打開，也一直認得是你。</span><div class="row"><button class="btn btn-tint btn-sm" type="button" data-act="a2hs-ok">知道了</button></div></div></div>`;
+}
+
 /* ---------- 畫面：帳本 ---------- */
 function vLedger() {
   const me = S.me, two = M.length === 2, other = two ? M.find(p => p !== me) : '';
@@ -544,7 +584,7 @@ function vLedger() {
   const openItems = S.items.filter(itemOpen).length;
   const nc = newCounts(me);
   const head = two ? (tb > 0 ? `${other} 要給你` : tb < 0 ? `你要給 ${other}` : '天幣兩邊清了') : (tb > 0 ? '別人總共欠你' : tb < 0 ? '你總共欠別人' : '天幣沒有欠款');
-  let h = `<section class="hero" aria-label="我的帳"><p class="k">${esc(head)}</p><p class="n ${cls(tb)}">${money(Math.abs(tb), 'tb')}<small>天幣</small></p>`;
+  let h = a2hsTip() + `<section class="hero" aria-label="我的帳"><p class="k">${esc(head)}</p><p class="n ${cls(tb)}">${money(Math.abs(tb), 'tb')}<small>天幣</small></p>`;
   if (nt) h += `<p class="nt">台幣：${esc(two ? (nt > 0 ? `${other} 要給你` : `你要給 ${other}`) : (nt > 0 ? '別人欠你' : '你欠別人'))} <b class="${cls(nt)}">${money(Math.abs(nt), 'nt')}</b></p>`;
   if (tb || nt) h += `<button class="link" type="button" data-act="calc">怎麼算出來的 ${CHEV}</button>`;
   const pay = mine.some(x => x.from === me), recv = mine.some(x => x.to === me);
@@ -581,7 +621,7 @@ function orderCell(o) {
     acts += `<button class="btn btn-tint btn-sm" type="button" data-act="o-deliver" data-id="${o.id}">收到幾${u}</button>`;
   }
   return `<div class="cell ocell">
-    <div class="ohead">${ico('cart', 'indigo')}<div class="main"><span class="t">${esc(o.item)}</span><span class="s">${esc(agent === me ? `${buyer} 給你的代購金` : `你給 ${agent} 的代購金`)}</span></div></div>
+    <button class="ohead" type="button" data-act="order" data-id="${o.id}">${ico('cart', 'indigo')}<span class="main"><span class="t">${esc(o.item)}</span><span class="s">${esc(agent === me ? `${buyer} 給你的代購金` : `你給 ${agent} 的代購金`)}</span></span><span class="s">明細</span>${CHEV}</button>
     ${ended ? '<p class="s">已經結算</p>' : `<div class="prog${left < 0 ? ' over' : ''}"><i style="width:${pct.toFixed(1)}%"></i></div>
     <p class="s">已用 ${mf(sp)} / ${mf(o.amt)} · ${left >= 0 ? `剩 <b>${mf(left)}</b>` : `<b class="neg">超過 ${mf(-left)}</b>`}</p>`}
     <p class="s">收了 ${bought} ${u} · ${agent === me ? '還沒交' : '還沒交給你'} <b>${undel} ${u}</b></p>
@@ -675,7 +715,10 @@ function formHTML(ctx) {
   const { type, d } = ctx, L = LABELS[type], Q = qtyInfo(ctx);
   const fromList = type === 'ikeep' ? ctx.item.owners : M;
   let h = '<form id="f" novalidate>';
-  if (L.item) h += group('', `<label class="cell field"><span class="k">${L.item}</span><input id="f-item" type="text" maxlength="30" autocomplete="off" placeholder="例：${type === 'order' ? '魔法卷軸(鎧甲護持)' : '31F卷軸'}" value="${esc(d.item)}"></label>`);
+  if (L.item) {
+    const ph = type === 'order' || type === 'buy' ? '例：魔法卷軸(鎧甲護持)' : '打幾個字找百科名稱，例：31樓';
+    h += group('', `<label class="cell field"><span class="k">${L.item}</span><input id="f-item" type="text" maxlength="30" autocomplete="off" placeholder="${ph}" value="${esc(d.item)}"></label><div class="cell sugg" id="f-sugg-cell" hidden><div class="sugg-h" id="f-sugg-h"></div><div class="qchips" id="f-sugg"></div></div>`, '<span id="f-item-hint"></span>');
+  }
   if (type === 'isell') h += `<p class="foot tight">有份：${esc(ctx.item.owners.join('、'))}（新增時填的），賣掉的錢照這個分。</p>`;
   if (type === 'ikeep') h += `<p class="foot tight">有份：${esc(ctx.item.owners.join('、'))}。留下的人照講好的價錢，把錢分給其他有份的人。</p>`;
   if (L.to && !L.multi) {
@@ -753,6 +796,18 @@ const showSum = (prefix, r) => {
 function refresh(ctx) {
   readForm(ctx);
   const r = draftEval(ctx), d = ctx.d, q = id => sheet.querySelector('#' + id);
+  const sg = q('f-sugg');
+  if (sg) {
+    const v = q('f-item').value, t = v.trim();
+    if (sg.dataset.q !== v || !sg.dataset.ready) {
+      const s = suggestNames(ctx.type, v);
+      sg.dataset.q = v; sg.dataset.ready = '1';
+      sg.innerHTML = s.list.map(n => `<button class="qchip" type="button" data-act="pickname" data-v="${esc(n)}">${esc(n)}</button>`).join('');
+      q('f-sugg-h').textContent = s.label;
+      q('f-sugg-cell').hidden = !s.list.length;
+    }
+    q('f-item-hint').textContent = !t ? '' : OFFICIAL_SET.has(t) ? '百科正式名稱 ✓' : recentNames(ctx.type).includes(t) ? '' : '百科裡沒有這個名稱，還是可以照樣記。';
+  }
   if (q('f-unit')) {
     q('f-unit').textContent = d.cur === 'tb' ? '天幣' : '元';
     const ch = q('f-chips');
@@ -902,6 +957,20 @@ function sheetHTML(ctx) {
       const sum = ctx.e ? `${title(ctx.e)}${ctx.e.type === 'deliver' ? '' : ` · ${moneyFull(ctx.e.amt, ctx.e.cur)}`}` : `打到「${ctx.item.name}」`;
       return shell('作廢', `<form id="f" novalidate><p class="foot tight">${esc(sum)}</p>${group('', '<label class="cell field"><span class="k">原因</span><input id="v-reason" type="text" maxlength="40" autocomplete="off" placeholder="例：金額打錯"></label>', '作廢後不算數，但紀錄會留著，對方會看到「新作廢」。要改的話，作廢後再記一筆正確的。')}<p class="need" id="v-need"></p></form>`, { right: '作廢', rightId: 'v-ok', form: true, danger: true });
     }
+    case 'order': {
+      // 代購明細：每一批收多少、交了多少、結算
+      const o = ctx.o, u = unitOf(o.item), agent = o.to[0], buyer = o.from;
+      const buys = ofType(o, 'obuy'), dels = ofType(o, 'deliver'), end = endOf(o);
+      const sp = spentOf(o), left = o.amt - sp, when = e => (e.seed ? '補記' : `${md(e.t)} ${hm(e.t)}`);
+      const row = (e, t, r) => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${t}</span><span class="s">${esc(when(e))} · ${esc(e.by)} 記的</span></span>${r ? `<span class="r">${r}</span>` : ''}${CHEV}</button>`;
+      let b = `<div class="dhead">${ico('cart', 'indigo')}<div class="main"><p class="dt">${esc(o.item)}</p><p class="ds">${esc(buyer)} 給 ${esc(agent)} 的代購金</p></div></div>`;
+      b += group('', kv('代購金', moneyFull(o.amt, o.cur), 'strong') + kv('已用', moneyFull(sp, o.cur)) + kv(left >= 0 ? '剩' : '超過', moneyFull(Math.abs(left), o.cur)) + kv('收了', `${boughtOf(o)} ${u}`) + kv('已交', `${deliveredOf(o)} ${u}`) + kv('狀態', end ? '已結算' : '還在收'));
+      b += group(`每一批（${buys.length}）`, buys.length ? buys.map(e => row(e, `${e.qty} ${u} × 每${u} ${money(e.unit, e.cur)}`, money(e.amt, e.cur))).join('') : '<div class="cell"><span class="s">還沒收到任何一批。</span></div>');
+      if (dels.length) b += group('交貨', dels.map(e => row(e, `交 ${e.qty} ${u}`, '')).join(''));
+      if (end) b += group('結算', row(end, esc(title(end)), money(end.amt, end.cur)));
+      b += group('', row(o, '代購金那一筆', ''), '點一筆可以看詳細或作廢。');
+      return shell(esc(o.item), b, { left: '', right: '完成' });
+    }
     case 'me':
       return shell('你的帳號', group('', `<div class="cell kv"><span class="k">你是</span><span class="v strong">${esc(me)}</span></div><button class="cell tap act" type="button" data-act="reload">重新整理帳本</button>`, '這支手機用你的專屬網址登入，記的帳都會寫成你記的。網址不要給別人；外流了請說一聲，會換一組新的。'), { left: '', right: '完成' });
   }
@@ -925,7 +994,7 @@ function closeSheet() {
 const openForm = type => openSheet({ k: 'form', type, d: newDraft(type) });
 
 // 存到後台：按鈕變「儲存中…」，成功就關掉表單並更新畫面，失敗就把原因寫在表單裡
-async function save(call, msg, goTab) {
+async function save(call, msg, tabAfter, undoList) {
   if (saving) return;
   saving = true;
   const btn = sheet.querySelector('button[type="submit"]'), label = btn ? btn.textContent : '';
@@ -935,15 +1004,55 @@ async function save(call, msg, goTab) {
     applyData(data);
     saving = false;
     closeSheet();
-    if (goTab) S.tab = goTab;
+    if (tabAfter) S.tab = tabAfter;
     render();
-    toast(msg);
+    toast(msg, undoList && undoList.length ? { label: '復原', run: () => undo(undoList) } : null);
   } catch (err) {
     saving = false;
     if (btn) { btn.disabled = false; btn.textContent = label; }
     const need = sheet.querySelector('.need');
     if (need) need.textContent = '沒存到：' + err.message; else toast('沒存到：' + err.message);
     load(true); // 背後順便抓最新的帳，關掉表單再看就是對的
+  }
+}
+// 用過的物品名稱（最近的在前面）：打寶類跟打寶類放一起，代購／代墊跟代購／代墊放一起
+function recentNames(type) {
+  const buyish = type === 'order' || type === 'buy', src = [];
+  for (const e of S.entries) if (!e.voided && e.item && (buyish ? e.type === 'order' || e.type === 'buy' : e.type === 'split')) src.push([e.t, e.item]);
+  for (const i of S.items) if (i.status !== 'void' && (buyish ? i.kind === 'buy' : i.kind === 'loot')) src.push([i.t, i.name]);
+  src.sort((a, b) => (a[0] < b[0] ? 1 : -1));
+  return [...new Set(src.map(x => x[1]))].slice(0, 8);
+}
+// 名稱提示：沒打字時列出最近用過的；有打字時先找用過的，再找官方百科（「31F」「31樓」都找得到「…(31樓)」）
+function suggestNames(type, v) {
+  const q = v.trim(), recent = recentNames(type);
+  if (!q) return { label: recent.length ? '最近用過' : '', list: recent };
+  const toks = q.replace(/(\d)\s*[fF樓]/g, '$1 ').match(/\d+|[^\d\s()（）,，、]+/g) || [];
+  const hit = n => toks.every(t => n.includes(t));
+  const out = [], seen = new Set([q]);
+  const push = n => { if (!seen.has(n)) { seen.add(n); out.push(n); } };
+  recent.filter(hit).forEach(push);
+  OFFICIAL.filter(n => n.startsWith(q)).forEach(push);
+  OFFICIAL.filter(hit).forEach(push);
+  return { label: out.length ? '點一下就填好（百科正式名稱優先用）' : '', list: out.slice(0, 8) };
+}
+// 剛記下的那幾筆，按「復原」時要作廢的順序：後記的先作廢；跟帳一起記的東西，後台會跟著作廢
+const undoOf = p => {
+  const es = p.entries || [], is = p.items || [];
+  return es.slice().reverse().map(e => ({ kind: 'e', id: e.id }))
+    .concat(is.filter(i => i.kind === 'loot' && !es.some(e => e.itemId === i.id)).map(i => ({ kind: 'i', id: i.id })));
+};
+async function undo(list) {
+  toast('復原中…');
+  try {
+    let d = null;
+    for (const x of list) d = await api('void', { kind: x.kind, id: x.id, reason: '剛記錯，按了復原' });
+    if (d) applyData(d);
+    render();
+    toast('已復原：剛剛那筆已作廢');
+  } catch (err) {
+    toast('沒復原成功：' + err.message);
+    load(true);
   }
 }
 function submitForm(ctx) {
@@ -968,15 +1077,26 @@ function submitForm(ctx) {
     payload.entries.push(e);
     msg = `記好了：${title(e)}`;
   }
-  save(() => api('add', payload), msg, ctx.type === 'loot' ? 'items' : null);
+  save(() => api('add', payload), msg, ctx.type === 'loot' ? 'items' : null, undoOf(payload));
 }
 
 let toastTimer;
-function toast(msg) {
+// 底部的提示；action = { label, run } 時多一顆按鈕（例如「復原」），停久一點
+function toast(msg, action) {
   const el = $('#toast');
-  el.textContent = msg; el.hidden = false;
+  el.textContent = '';
+  const span = document.createElement('span');
+  span.textContent = msg;
+  el.appendChild(span);
+  if (action) {
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'toast-btn'; btn.textContent = action.label;
+    btn.addEventListener('click', () => { clearTimeout(toastTimer); el.hidden = true; action.run(); });
+    el.appendChild(btn);
+  }
+  el.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
+  toastTimer = setTimeout(() => { el.hidden = true; }, action ? 6000 : 2600);
 }
 
 function render() {
@@ -1003,13 +1123,23 @@ function leaveLog(leavingPage) {
   }
   api('seen').then(d => { S.seen[S.me] = d.seen || S.seen[S.me]; }).catch(() => {});
 }
+// 換分頁；dir = 'next'／'prev' 時（左右滑）帶一點滑動的動畫。點目前這頁就捲回最上面
+function goTab(tab, dir) {
+  if (tab === S.tab) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  if (tab !== 'log') leaveLog();
+  S.tab = tab;
+  render();
+  window.scrollTo(0, 0);
+  view.classList.remove('slide-l', 'slide-r');
+  if (dir) { void view.offsetWidth; view.classList.add(dir === 'next' ? 'slide-l' : 'slide-r'); }
+}
 
 /* ---------- 事件 ---------- */
 document.addEventListener('click', ev => {
   const b = ev.target.closest('[data-act]');
   if (!b) return;
   const a = b.dataset.act;
-  if (a === 'tab') { if (b.dataset.tab !== 'log') leaveLog(); S.tab = b.dataset.tab; render(); window.scrollTo(0, 0); }
+  if (a === 'tab') goTab(b.dataset.tab);
   else if (a === 'reload') { if (SH) closeSheet(); S.error = ''; render(); load().then(good => { if (good) toast('帳本已更新'); }); }
   else if (!S.loaded) return;
   else if (a === 'new') { if (b.dataset.type) openForm(b.dataset.type); else openSheet({ k: 'pick' }); }
@@ -1017,6 +1147,12 @@ document.addEventListener('click', ev => {
   else if (a === 'me') openSheet({ k: 'me' });
   else if (a === 'close') { if (!saving) closeSheet(); }
   else if (a === 'calc') openSheet({ k: 'calc' });
+  else if (a === 'order') { const o = findE(b.dataset.id); if (o) openSheet({ k: 'order', o }); }
+  else if (a === 'pickname') {
+    const inp = sheet.querySelector('#f-item');
+    if (inp && SH && SH.k === 'form') { inp.value = b.dataset.v; inp.blur(); refresh(SH); }
+  }
+  else if (a === 'a2hs-ok') { try { localStorage.setItem(A2HS_KEY, '1'); } catch (_) {} render(); }
   else if (a === 'item') { const it = findI(b.dataset.item); if (it) openSheet({ k: 'item', item: it }); }
   else if (a === 'rec') { const e = findE(b.dataset.id); if (e) openSheet({ k: 'rec', e }); }
   else if (a === 'void') openSheet(b.dataset.id ? { k: 'void', e: findE(b.dataset.id) } : { k: 'void', item: findI(b.dataset.item) });
@@ -1082,7 +1218,7 @@ sheet.addEventListener('submit', ev => {
     if (!r.ok) return;
     if (SH.k === 'settle') {
       const e = { id: idFor(SH, 'e'), type: 'repay', from: r.x.from, to: [r.x.to], amt: r.amt, cur: r.x.cur, item: '', note: r.full ? '結清' : '', settle: true };
-      save(() => api('add', { entries: [e] }), `記好了：${title(e)} ${moneyFull(e.amt, e.cur)}`);
+      save(() => api('add', { entries: [e] }), `記好了：${title(e)} ${moneyFull(e.amt, e.cur)}`, null, undoOf({ entries: [e] }));
       return;
     }
     const o = SH.o, u = unitOf(o.item), agent = o.to[0], buyer = o.from;
@@ -1090,13 +1226,15 @@ sheet.addEventListener('submit', ev => {
     if (SH.k === 'obuy') {
       const list = [Object.assign({ id: idFor(SH, 'e'), type: 'obuy', from: agent, to: [buyer], qty: r.qty, unit: r.unit, amt: r.amt }, common)];
       if (sheet.querySelector('#b-del').checked) list.push(Object.assign({ id: idFor(SH, 'd'), type: 'deliver', from: agent, to: [buyer], qty: r.qty, amt: 0 }, common));
-      save(() => api('add', { entries: list }), `記好了：收了 ${r.qty} ${u}，花 ${moneyFull(r.amt, o.cur)}`);
+      save(() => api('add', { entries: list }), `記好了：收了 ${r.qty} ${u}，花 ${moneyFull(r.amt, o.cur)}`, null, undoOf({ entries: list }));
     } else if (SH.k === 'odeliver') {
-      save(() => api('add', { entries: [Object.assign({ id: idFor(SH, 'e'), type: 'deliver', from: agent, to: [buyer], qty: r.k, amt: 0 }, common)] }), `記好了：${agent} 交給 ${buyer}「${o.item}」${r.k} ${u}`);
+      const de = Object.assign({ id: idFor(SH, 'e'), type: 'deliver', from: agent, to: [buyer], qty: r.k, amt: 0 }, common);
+      save(() => api('add', { entries: [de] }), `記好了：${agent} 交給 ${buyer}「${o.item}」${r.k} ${u}`, null, undoOf({ entries: [de] }));
     } else {
       const left = r.left;
-      save(() => api('add', { entries: [Object.assign({ id: idFor(SH, 'e'), type: 'oend', from: left >= 0 ? buyer : agent, to: [left >= 0 ? agent : buyer], amt: Math.abs(left), refund: left >= 0 }, common)] }),
-        left > 0 ? `記好了：${agent} 要退 ${buyer} ${moneyFull(left, o.cur)}` : left < 0 ? `記好了：${buyer} 要補 ${agent} ${moneyFull(-left, o.cur)}` : '記好了：剛好用完');
+      const oe = Object.assign({ id: idFor(SH, 'e'), type: 'oend', from: left >= 0 ? buyer : agent, to: [left >= 0 ? agent : buyer], amt: Math.abs(left), refund: left >= 0 }, common);
+      save(() => api('add', { entries: [oe] }),
+        left > 0 ? `記好了：${agent} 要退 ${buyer} ${moneyFull(left, o.cur)}` : left < 0 ? `記好了：${buyer} 要補 ${agent} ${moneyFull(-left, o.cur)}` : '記好了：剛好用完', null, undoOf({ entries: [oe] }));
     }
   } else if (SH.k === 'hand') {
     const i = SH.item;
@@ -1159,6 +1297,54 @@ document.addEventListener('visibilitychange', () => {
   else if (wrap.hidden) load(true);
 });
 setInterval(() => { if (document.visibilityState === 'visible' && wrap.hidden && S.loaded) load(true); }, 60000);
+
+// 左右滑換分頁（沒開面板時）：往左滑到下一頁、往右滑回上一頁；螢幕最邊邊留給瀏覽器的「上一頁」手勢
+(() => {
+  let sx = 0, sy = 0, st = 0, on = false;
+  document.addEventListener('touchstart', ev => {
+    on = false;
+    if (!wrap.hidden || !S.loaded || ev.touches.length !== 1) return;
+    const t = ev.touches[0];
+    if (t.clientX < 24 || t.clientX > window.innerWidth - 24) return;
+    sx = t.clientX; sy = t.clientY; st = Date.now(); on = true;
+  }, { passive: true });
+  document.addEventListener('touchend', ev => {
+    if (!on) return;
+    on = false;
+    const t = ev.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 2 || Date.now() - st > 800) return;
+    const i = TABS.indexOf(S.tab) + (dx < 0 ? 1 : -1);
+    if (i >= 0 && i < TABS.length) goTab(TABS[i], dx < 0 ? 'next' : 'prev');
+  }, { passive: true });
+})();
+// 從主畫面打開時沒有瀏覽器的重新整理：在最上面往下拉就更新（在瀏覽器裡就用瀏覽器自己的下拉重新整理）
+(() => {
+  if (!STANDALONE) return;
+  const ptr = $('#ptr');
+  let sx = 0, sy = 0, dist = 0, on = false;
+  document.addEventListener('touchstart', ev => {
+    on = wrap.hidden && S.loaded && window.scrollY <= 0 && ev.touches.length === 1;
+    if (on) { sx = ev.touches[0].clientX; sy = ev.touches[0].clientY; dist = 0; }
+  }, { passive: true });
+  document.addEventListener('touchmove', ev => {
+    if (!on) return;
+    const t = ev.touches[0];
+    dist = t.clientY - sy;
+    if (Math.abs(t.clientX - sx) > Math.abs(dist)) { on = false; ptr.hidden = true; return; }
+    if (dist < 12) { ptr.hidden = true; return; }
+    ptr.hidden = false;
+    ptr.textContent = dist > 80 ? '放開就更新' : '往下拉更新';
+    ptr.style.opacity = String(Math.min(1, dist / 80));
+  }, { passive: true });
+  document.addEventListener('touchend', () => {
+    if (!on) return;
+    on = false;
+    if (dist > 80) {
+      ptr.textContent = '更新中…'; ptr.style.opacity = '1';
+      load().then(good => { ptr.hidden = true; if (good) toast('帳本已更新'); });
+    } else ptr.hidden = true;
+  }, { passive: true });
+})();
 
 initKey();
 render();
