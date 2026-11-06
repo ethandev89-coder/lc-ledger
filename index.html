@@ -654,7 +654,7 @@ const LABELS = {
   buy:   { title: '代墊', from: '誰先出錢', to: '幫誰收', amt: '花了多少', item: '收了什麼' },
   loot:  { title: '新增寶物', from: '在誰身上', to: '誰有份', multi: true, item: '打到什麼', noMoney: true },
   sell:  { title: '賣掉分錢', from: '錢在誰身上', to: '誰有份', multi: true, amt: '賣出的總價', item: '賣了什麼' },
-  isell: { title: '賣掉了', from: '錢在誰身上', to: '誰有份', multi: true, amt: '這次賣出的總價' },
+  isell: { title: '賣掉了', from: '錢在誰身上', to: null, amt: '這次賣出的總價' }, // 誰有份沿用新增寶物時填的
   ikeep: { title: '留著自己用', from: '誰要留', to: null, amt: '講好的總價' },
 };
 function newDraft(type) {
@@ -676,6 +676,7 @@ function formHTML(ctx) {
   const fromList = type === 'ikeep' ? ctx.item.owners : M;
   let h = '<form id="f" novalidate>';
   if (L.item) h += group('', `<label class="cell field"><span class="k">${L.item}</span><input id="f-item" type="text" maxlength="30" autocomplete="off" placeholder="例：${type === 'order' ? '魔法卷軸(鎧甲護持)' : '31F卷軸'}" value="${esc(d.item)}"></label>`);
+  if (type === 'isell') h += `<p class="foot tight">有份：${esc(ctx.item.owners.join('、'))}（新增時填的），賣掉的錢照這個分。</p>`;
   if (type === 'ikeep') h += `<p class="foot tight">有份：${esc(ctx.item.owners.join('、'))}。留下的人照講好的價錢，把錢分給其他有份的人。</p>`;
   if (L.to && !L.multi) {
     h += group('', `<div class="cell pick"><span class="k">${L.from}</span>${seg('from', fromList, d.from)}</div><div class="cell pick"><span class="k">${L.to}</span>${seg('to', M, d.to[0] || '')}</div>`);
@@ -719,7 +720,8 @@ function draftEval(ctx) {
   }
   if (type === 'loot') return { ok: true, qty, prev: `「${item}」${qty > 1 ? ` ×${qty}` : ''} 放進東西清單，在 ${d.from} 身上，${d.to.length} 人有份。賣掉時再分錢。` };
   let e;
-  if (type === 'ikeep') e = { type: 'split', kept: true, from: d.from, to: ctx.item.owners.slice(), qty };
+  // 已經新增過的東西：誰有份照新增時填的，不再問一次
+  if (type === 'ikeep' || type === 'isell') e = { type: 'split', kept: type === 'ikeep', from: d.from, to: ctx.item.owners.slice(), qty };
   else if (L.multi) e = { type: 'split', from: d.from, to: d.to.slice(), qty };
   else {
     if (d.to[0] === d.from) return { need: '兩邊不能是同一個人' };
@@ -727,7 +729,8 @@ function draftEval(ctx) {
   }
   Object.assign(e, { amt: parseAmt(d.amt, d.cur), cur: d.cur, item });
   if (!e.amt) return { need: `還差：${L.amt}` };
-  if (e.type === 'split' && e.to.length === 1 && e.to[0] === e.from) return { need: '只有一個人有份，不用分錢' };
+  // 直接記「賣掉分錢」時才擋；新增過的東西就算只有一個人有份，也要能記賣掉，東西才會從清單上收起來
+  if (type === 'sell' && e.to.length === 1 && e.to[0] === e.from) return { need: '只有一個人有份，不用分錢' };
   let prev;
   if (type === 'order') prev = `${e.to[0]} 先拿著 ${e.from} 的代購金 ${moneyFull(e.amt, e.cur)}，收「${item}」用；每收一批照實際價錢扣，收完再結算。`;
   else {
