@@ -1108,6 +1108,51 @@ sheet.addEventListener('submit', ev => {
   }
 });
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && !wrap.hidden && !saving) closeSheet(); });
+// 面板往下滑就關掉（跟 iPhone 一樣）：從上方橫槓、標題列拉，或內容已經捲到最上面時往下拉
+(() => {
+  const scrim = wrap.querySelector('.scrim');
+  let armed = false, dragging = false, startY = 0, startT = 0, dy = 0;
+  const reset = () => { sheet.style.transition = ''; sheet.style.transform = ''; scrim.style.transition = ''; scrim.style.opacity = ''; };
+  sheet.addEventListener('touchstart', ev => {
+    armed = false;
+    if (saving || ev.touches.length !== 1) return;
+    const t = ev.target, b = sheet.querySelector('.sh-body');
+    armed = !!t.closest('.grab, .sh-nav') || (!!b && b.contains(t) && b.scrollTop <= 0);
+    if (!armed) return;
+    startY = ev.touches[0].clientY; startT = Date.now(); dy = 0; dragging = false;
+  }, { passive: true });
+  sheet.addEventListener('touchmove', ev => {
+    if (!armed) return;
+    const d = ev.touches[0].clientY - startY;
+    if (!dragging) {
+      if (d < -4) { armed = false; return; } // 往上滑：照常捲動內容
+      if (d < 8) return;
+      dragging = true;
+      sheet.style.transition = 'none'; scrim.style.transition = 'none';
+    }
+    dy = Math.max(0, d);
+    sheet.style.transform = `translateY(${dy}px)`;
+    scrim.style.opacity = String(Math.max(0, 1 - dy / sheet.offsetHeight));
+    ev.preventDefault();
+  }, { passive: false });
+  const end = () => {
+    if (!armed) return;
+    armed = false;
+    if (!dragging) return;
+    dragging = false;
+    const h = sheet.offsetHeight, fast = dy > 40 && dy / Math.max(1, Date.now() - startT) > 0.6;
+    sheet.style.transition = 'transform .2s ease'; scrim.style.transition = 'opacity .2s ease';
+    if (!saving && (dy > Math.min(140, h * 0.3) || fast)) {
+      sheet.style.transform = `translateY(${h}px)`; scrim.style.opacity = '0';
+      setTimeout(() => { reset(); closeSheet(); }, 190);
+    } else {
+      sheet.style.transform = ''; scrim.style.opacity = '';
+      setTimeout(reset, 210);
+    }
+  };
+  sheet.addEventListener('touchend', end);
+  sheet.addEventListener('touchcancel', end);
+})();
 // 回到這個網頁、或每分鐘一次，抓對方新記的帳（有表單打開時先不動）
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') leaveLog(true);
