@@ -14,7 +14,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
-/* 版面：蘋果風（iOS 分組清單），一欄最寬 30rem；上方大標題＋右上「新增」，底部半透明分頁列，所有輸入都在底部彈出的表單裡 */
+/* 版面：蘋果風（iOS 分組清單），一欄最寬 30rem；上方大標題＋右邊頭像，右下角圓形「＋」是新增，底部半透明分頁列，所有輸入都在底部彈出的表單裡 */
 :root {
   --bg: #F2F2F7;
   --cell: #FFFFFF;
@@ -85,17 +85,16 @@ h1, h2, p { margin: 0; }
   max-width: var(--col); margin: 0 auto;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 0 calc(110px + env(safe-area-inset-bottom, 0px));
+  padding-block: 0 calc(150px + env(safe-area-inset-bottom, 0px));
 }
-.nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); }
-.nav-row { display: flex; align-items: center; justify-content: flex-end; gap: 10px; min-height: 48px; }
+.lhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 24px 0 16px; }
 .nb { min-width: 44px; min-height: 44px; padding: 10px 6px; border: 0; background: none; color: var(--blue); font-size: 17px; cursor: pointer; }
 .nb.r { font-weight: 600; }
 .nb.danger { color: var(--red-t); }
 .nb:disabled { color: var(--label-3); cursor: default; }
 .avatar { position: relative; flex: none; width: 36px; height: 36px; border: 0; border-radius: 50%; background: linear-gradient(180deg, var(--av-a), var(--av-b)); color: var(--on-color); font-size: 15px; font-weight: 600; cursor: pointer; }
 .avatar::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; }
-.ltitle { margin: 2px 0 16px; font-size: 34px; font-weight: 700; line-height: 1.2; letter-spacing: .01em; }
+.ltitle { margin: 0; font-size: 34px; font-weight: 700; line-height: 1.2; letter-spacing: .01em; }
 
 .hero { margin-bottom: 26px; padding: 18px 18px 14px; border-radius: 16px; background: var(--cell); }
 .hero .k { font-size: 15px; font-weight: 500; color: var(--label-2); }
@@ -203,6 +202,18 @@ button.cell { border: 0; background: none; text-align: left; cursor: pointer; }
 .tab { display: grid; justify-items: center; gap: 1px; padding: 7px 0 5px; border: 0; background: none; color: var(--c-gray); font-size: 11px; font-weight: 500; cursor: pointer; }
 .tab svg { width: 26px; height: 26px; }
 .tab[aria-current="page"] { color: var(--blue); }
+/* 右下角圓形「＋」（新增）：浮在分頁列上方，對齊內容欄的右邊 */
+.fab {
+  position: fixed; z-index: 7;
+  right: max(16px, env(safe-area-inset-right, 0px), calc((100vw - var(--col)) / 2 + 16px));
+  bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  display: grid; place-items: center; width: 56px; height: 56px; padding: 0; border: 0; border-radius: 50%;
+  background: var(--blue); color: var(--on-color); cursor: pointer;
+  box-shadow: 0 6px 16px rgba(0, 122, 255, .32), 0 2px 5px rgba(0, 0, 0, .14);
+  transition: transform .12s;
+}
+.fab svg { width: 28px; height: 28px; }
+.fab:active { transform: scale(.92); }
 
 .sheet-wrap { position: fixed; inset: 0; z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
 .scrim { position: absolute; inset: 0; background: var(--scrim); }
@@ -227,7 +238,7 @@ button.cell { border: 0; background: none; text-align: left; cursor: pointer; }
 }
 
 .toast {
-  position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); z-index: 30; transform: translateX(-50%);
+  position: fixed; left: 50%; bottom: calc(140px + env(safe-area-inset-bottom, 0px)); z-index: 30; transform: translateX(-50%);
   width: max-content; max-width: min(90vw, 26rem); padding: 12px 18px; border-radius: 14px;
   background: var(--hud); color: var(--on-color); font-size: 15px; font-weight: 500; text-align: center;
   -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
@@ -253,13 +264,14 @@ button.cell { border: 0; background: none; text-align: left; cursor: pointer; }
 </head>
 <body>
 <div class="app">
-  <div class="nav"><div class="nav-row">
-    <button class="nb" id="navAct" type="button" data-act="new" hidden>新增</button>
+  <header class="lhead">
+    <h1 class="ltitle" id="ltText">帳本</h1>
     <button class="avatar" id="avatar" type="button" data-act="me" aria-haspopup="dialog" hidden></button>
-  </div></div>
-  <h1 class="ltitle" id="ltText">帳本</h1>
+  </header>
   <main id="view"></main>
 </div>
+
+<button class="fab" id="fab" type="button" data-act="new" aria-label="新增" aria-haspopup="dialog" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
 
 <nav class="tabbar" id="tabbar" aria-label="分頁" hidden>
   <div class="tabbar-in">
@@ -634,7 +646,7 @@ function vItems() {
   const live = S.items.filter(i => i.status !== 'void');
   const byNew = (a, b) => (a.t < b.t ? 1 : -1);
   const open = live.filter(itemOpen).sort(byNew), done = live.filter(i => !itemOpen(i)).sort(byNew);
-  let h = group('還在身上', open.length ? open.map(itemCell).join('') : '<div class="cell"><span class="s">沒有還沒處理的東西。打到寶時按右上角「新增」。</span></div>');
+  let h = group('還在身上', open.length ? open.map(itemCell).join('') : '<div class="cell"><span class="s">沒有還沒處理的東西。打到寶時按右下角的「＋」。</span></div>');
   if (done.length) h += group('已處理', done.map(itemCell).join(''));
   h += '<p class="foot">東西還沒賣掉前不算錢。點一下東西，可以記「賣掉了」或「留著自己用」。同一種東西可以分好幾次賣，每次記那次的價錢。</p>';
   return h;
@@ -1101,12 +1113,13 @@ function toast(msg, action) {
 
 function render() {
   const t = S.tab, ready = S.loaded;
-  const av = $('#avatar'), act = $('#navAct');
-  av.hidden = !ready; act.hidden = !ready; $('#tabbar').hidden = !ready;
+  const av = $('#avatar'), fab = $('#fab');
+  av.hidden = !ready; fab.hidden = !ready; $('#tabbar').hidden = !ready;
   if (ready) {
     av.textContent = S.me.slice(0, 1);
     av.setAttribute('aria-label', `你是 ${S.me}`);
-    act.dataset.type = t === 'items' ? 'loot' : '';
+    fab.dataset.type = t === 'items' ? 'loot' : '';
+    fab.setAttribute('aria-label', t === 'items' ? '新增寶物' : '新增');
   }
   $('#ltText').textContent = t === 'ledger' ? '帳本' : t === 'items' ? '東西' : '紀錄';
   for (const b of document.querySelectorAll('.tab')) b.setAttribute('aria-current', b.dataset.tab === t ? 'page' : 'false');
