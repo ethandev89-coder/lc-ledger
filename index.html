@@ -1,0 +1,1407 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="帳本">
+<meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<title>帳本</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23007AFF'/%3E%3Cpath d='M20 14h20a6 6 0 0 1 6 6v30H24a6 6 0 0 1-6-6V16' fill='none' stroke='white' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M18 44a6 6 0 0 1 6-6h22' fill='none' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+/* 版面：蘋果風（iOS 分組清單），一欄最寬 30rem；上方大標題＋右邊頭像，右下角圓形「＋」是新增，底部半透明分頁列，所有輸入都在底部彈出的表單裡 */
+:root {
+  --bg: #F2F2F7;
+  --cell: #FFFFFF;
+  --cell-press: #E5E5EA;
+  --sheet-bg: #F2F2F7;
+  --sheet-cell: #FFFFFF;
+  --sheet-press: #E5E5EA;
+  --fill: rgba(118, 118, 128, .12);
+  --track: #E9E9EA;
+  --knob: #FFFFFF;
+  --seg-on: #FFFFFF;
+  --label: #000000;
+  --label-2: rgba(60, 60, 67, .62);
+  --label-3: rgba(60, 60, 67, .32);
+  --sep: rgba(60, 60, 67, .22);
+  --blue: #007AFF;
+  --tint-ink: #007AFF;
+  --on-color: #FFFFFF;
+  --blue-tint: rgba(0, 122, 255, .12);
+  --green-t: #248A3D;
+  --red-t: #D70015;
+  --orange-t: #C93400;
+  --orange-tint: rgba(255, 149, 0, .16);
+  --c-blue: #007AFF;
+  --c-green: #34C759;
+  --c-orange: #FF9500;
+  --c-indigo: #5856D6;
+  --c-purple: #AF52DE;
+  --c-gray: #8E8E93;
+  --c-red: #FF3B30;
+  --bar: rgba(249, 249, 249, .92);
+  --scrim: rgba(0, 0, 0, .4);
+  --hud: rgba(28, 28, 30, .9);
+  --av-a: #A5ABB6;
+  --av-b: #858A94;
+  --shadow-seg: 0 3px 8px rgba(0, 0, 0, .12), 0 3px 1px rgba(0, 0, 0, .04);
+  --shadow-knob: 0 3px 8px rgba(0, 0, 0, .15), 0 3px 1px rgba(0, 0, 0, .06);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang TC", "Heiti TC", "Noto Sans TC", "Microsoft JhengHei", "Helvetica Neue", Arial, sans-serif;
+  --col: 30rem;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000; --cell: #1C1C1E; --cell-press: #2C2C2E;
+    --sheet-bg: #1C1C1E; --sheet-cell: #2C2C2E; --sheet-press: #3A3A3C;
+    --fill: rgba(118, 118, 128, .24); --track: #39393D; --knob: #FFFFFF; --seg-on: #636366;
+    --label: #FFFFFF; --label-2: rgba(235, 235, 245, .62); --label-3: rgba(235, 235, 245, .32); --sep: rgba(84, 84, 88, .6);
+    --blue: #0A84FF; --tint-ink: #409CFF; --on-color: #FFFFFF; --blue-tint: rgba(10, 132, 255, .24);
+    --green-t: #30D158; --red-t: #FF453A; --orange-t: #FF9F0A; --orange-tint: rgba(255, 159, 10, .2);
+    --c-blue: #0A84FF; --c-green: #30D158; --c-orange: #FF9F0A; --c-indigo: #5E5CE6; --c-purple: #BF5AF2; --c-gray: #8E8E93; --c-red: #FF453A;
+    --bar: rgba(22, 22, 24, .92); --scrim: rgba(0, 0, 0, .6); --hud: rgba(58, 58, 60, .95);
+    --av-a: #6E737C; --av-b: #50545B;
+    --shadow-seg: 0 3px 8px rgba(0, 0, 0, .3); --shadow-knob: 0 3px 8px rgba(0, 0, 0, .3);
+    color-scheme: dark;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; padding-top: env(safe-area-inset-top, 0px); background: var(--bg); color: var(--label); font: 400 17px/1.35 var(--font); -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+h1, h2, p { margin: 0; }
+
+.app {
+  max-width: var(--col); margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 calc(150px + env(safe-area-inset-bottom, 0px));
+}
+.lhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 24px 0 16px; }
+.nb { min-width: 44px; min-height: 44px; padding: 10px 6px; border: 0; background: none; color: var(--blue); font-size: 17px; cursor: pointer; }
+.nb.r { font-weight: 600; }
+.nb.danger { color: var(--red-t); }
+.nb:disabled { color: var(--label-3); cursor: default; }
+.avatar { position: relative; flex: none; width: 36px; height: 36px; border: 0; border-radius: 50%; background: linear-gradient(180deg, var(--av-a), var(--av-b)); color: var(--on-color); font-size: 15px; font-weight: 600; cursor: pointer; }
+.avatar::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; }
+.ltitle { margin: 0; font-size: 34px; font-weight: 700; line-height: 1.2; letter-spacing: .01em; }
+
+.hero { margin-bottom: 26px; padding: 18px 18px 14px; border-radius: 16px; background: var(--cell); }
+.hero .k { font-size: 15px; font-weight: 500; color: var(--label-2); }
+.hero .n { margin-top: 2px; font-size: 46px; font-weight: 700; line-height: 1.1; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.hero .n small { margin-left: 6px; font-size: 17px; font-weight: 600; color: var(--label-2); letter-spacing: 0; }
+.hero .nt { margin-top: 8px; font-size: 15px; color: var(--label-2); }
+.asbar { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 44px; margin: 0 0 12px; padding: 10px 16px; border: 0; border-radius: 12px; background: var(--cell); color: var(--label); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.asbar b { font-weight: 600; }
+.asbar .sw { margin-left: auto; color: var(--blue); }
+.plist { margin-top: 14px; border-top: .5px solid var(--sep); }
+.prow { display: flex; align-items: center; gap: 10px; padding: 12px 0 2px; }
+.prow + .prow { margin-top: 10px; border-top: .5px solid var(--sep); }
+.pmain { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 0; border: 0; background: none; color: var(--label); font: inherit; text-align: left; cursor: pointer; }
+.pn { font-size: 17px; font-weight: 600; }
+.ps { font-size: 13px; color: var(--label-2); }
+.ps b { color: var(--blue); font-weight: 400; }
+.pa { font-size: 18px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.prow .btn-sm { flex: none; }
+.link { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; margin-top: 4px; padding: 0; border: 0; background: none; color: var(--blue); font-size: 15px; cursor: pointer; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.pos { color: var(--green-t); }
+.neg { color: var(--red-t); }
+.zero { color: var(--label-2); }
+
+.grp { margin-bottom: 26px; }
+.grp-h { padding: 0 16px 7px; font-size: 13px; color: var(--label-2); }
+.grp-b { overflow: hidden; border-radius: 12px; background: var(--cell); }
+.grp-f { padding: 7px 16px 0; font-size: 13px; line-height: 1.45; color: var(--label-2); }
+.cell { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 46px; padding: 11px 16px; }
+.cell + .cell::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; border-top: .5px solid var(--sep); }
+.ic-row + .ic-row::before { left: 58px; }
+button.cell { border: 0; background: none; text-align: left; cursor: pointer; }
+.tap:active { background: var(--cell-press); }
+.main { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.main .t { font-size: 17px; }
+.s { font-size: 15px; color: var(--label-2); }
+.q { font-size: 15px; color: var(--label-2); }
+.chev { flex: none; color: var(--label-3); }
+.ic { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; color: var(--on-color); }
+.ic svg { width: 18px; height: 18px; }
+.act { color: var(--blue); }
+.danger { color: var(--red-t); }
+.kv { align-items: flex-start; }
+.kv .k { flex: none; }
+.kv .v { flex: 1; min-width: 0; text-align: right; color: var(--label-2); }
+.kv .v.strong { color: var(--label); font-weight: 600; }
+.r { flex: none; margin-left: 4px; text-align: right; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.r.dim { color: var(--label-2); font-weight: 500; }
+.bdg { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 3px; }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 10px; background: var(--orange-tint); color: var(--orange-t); font-size: 12px; font-weight: 600; }
+.badge.gray { background: var(--fill); color: var(--label-2); }
+.badge.new { background: var(--blue-tint); color: var(--tint-ink); }
+.void .t, .void .r { color: var(--label-3); text-decoration: line-through; }
+.foot { margin: 0 0 26px; padding: 0 16px; font-size: 13px; line-height: 1.45; color: var(--label-2); }
+.foot.tight { margin-bottom: 14px; }
+.lead { padding: 4px 4px 14px; font-size: 17px; line-height: 1.5; }
+
+.ocell { display: grid; gap: 4px; padding: 14px 16px 16px; }
+.ohead { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.prog { overflow: hidden; height: 6px; margin: 6px 0 4px; border-radius: 3px; background: var(--fill); }
+.prog i { display: block; height: 100%; border-radius: 3px; background: var(--c-indigo); }
+.prog.over i { background: var(--c-red); }
+.ocell .s b { color: var(--label); font-weight: 600; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 20px; border: 0; border-radius: 12px; font-size: 17px; font-weight: 600; cursor: pointer; }
+.btn-sm { min-height: 38px; padding: 0 18px; border-radius: 19px; font-size: 15px; }
+.btn-fill { background: var(--blue); color: var(--on-color); }
+.btn-tint { background: var(--blue-tint); color: var(--tint-ink); }
+
+.segc { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; width: 100%; padding: 2px; border-radius: 9px; background: var(--fill); }
+.segc label { position: relative; min-width: 0; }
+.segc input { position: absolute; opacity: 0; pointer-events: none; }
+.segc span { display: block; width: 100%; padding: 7px 6px; border-radius: 7px; color: var(--label); font-size: 15px; font-weight: 500; text-align: center; white-space: nowrap; cursor: pointer; }
+.segc input:checked + span { background: var(--seg-on); box-shadow: var(--shadow-seg); font-weight: 600; }
+.segc input:focus-visible + span { outline: 2px solid var(--blue); outline-offset: 1px; }
+.pick .k { flex: none; width: 5.2em; font-size: 15px; color: var(--label-2); }
+.pick .segc { flex: 1; min-width: 0; }
+
+.field .k { flex: none; min-width: 4.5em; }
+.field input { flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--label); font: inherit; font-size: 17px; outline: none; }
+.field input::placeholder, .amt-cell input::placeholder { color: var(--label-3); }
+.field .sfx { flex: none; color: var(--label-2); }
+.amt-cell { align-items: baseline; justify-content: center; gap: 6px; padding: 12px 16px 10px; }
+.amt-cell input { width: 100%; min-width: 0; padding: 0; border: 0; background: none; color: var(--label); font: inherit; font-size: 34px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; outline: none; }
+.amt-cell .u { flex: none; font-size: 17px; color: var(--label-2); }
+.qchips { display: flex; flex-wrap: wrap; gap: 8px; }
+.qchip { min-height: 34px; padding: 0 12px; border: 0; border-radius: 17px; background: var(--fill); color: var(--label); font-size: 14px; font-weight: 500; cursor: pointer; }
+.chk { cursor: pointer; }
+.chk input { position: absolute; opacity: 0; pointer-events: none; }
+.chk .t { flex: 1; }
+.chk .mark { flex: none; color: var(--blue); font-weight: 700; visibility: hidden; }
+.chk input:checked ~ .mark { visibility: visible; }
+.chk input:focus-visible ~ .t { outline: 2px solid var(--blue); outline-offset: 2px; }
+.sw .t { flex: 1; min-width: 0; }
+.switch { appearance: none; -webkit-appearance: none; position: relative; flex: none; width: 51px; height: 31px; margin: 0; border-radius: 16px; background: var(--track); cursor: pointer; transition: background .2s; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: var(--knob); box-shadow: var(--shadow-knob); transition: transform .2s; }
+.switch:checked { background: var(--c-green); }
+.switch:checked::after { transform: translateX(20px); }
+.sum { margin: 0 0 10px; padding: 12px 14px; border-radius: 12px; background: var(--blue-tint); font-size: 15px; line-height: 1.45; }
+.sum .why { display: block; margin-top: 4px; font-size: 13px; color: var(--label-2); }
+.need { min-height: 1.4em; padding: 0 16px; font-size: 13px; color: var(--label-2); }
+.dhead { display: flex; align-items: center; gap: 12px; margin: 4px 4px 18px; }
+.dhead .ic { width: 44px; height: 44px; border-radius: 11px; }
+.dhead .ic svg { width: 24px; height: 24px; }
+.dt { font-size: 20px; font-weight: 700; line-height: 1.3; }
+.ds { font-size: 15px; color: var(--label-2); }
+
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
+  background: var(--bar); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+  border-top: .5px solid var(--sep);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.tabbar-in { display: grid; grid-template-columns: repeat(3, 1fr); max-width: calc(var(--col) - 32px); margin: 0 auto; }
+.tab { display: grid; justify-items: center; gap: 1px; padding: 7px 0 5px; border: 0; background: none; color: var(--c-gray); font-size: 11px; font-weight: 500; cursor: pointer; }
+.tab svg { width: 26px; height: 26px; }
+.tab[aria-current="page"] { color: var(--blue); }
+/* 右下角圓形「＋」（新增）：浮在分頁列上方，對齊內容欄的右邊 */
+.fab {
+  position: fixed; z-index: 7;
+  right: max(16px, env(safe-area-inset-right, 0px), calc((100vw - var(--col)) / 2 + 16px));
+  bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  display: grid; place-items: center; width: 56px; height: 56px; padding: 0; border: 0; border-radius: 50%;
+  background: var(--blue); color: var(--on-color); cursor: pointer;
+  box-shadow: 0 6px 16px rgba(0, 122, 255, .32), 0 2px 5px rgba(0, 0, 0, .14);
+  transition: transform .12s;
+}
+.fab svg { width: 28px; height: 28px; }
+.fab:active { transform: scale(.92); }
+
+.sheet-wrap { position: fixed; inset: 0; z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
+.scrim { position: absolute; inset: 0; background: var(--scrim); }
+.sheet { position: relative; display: flex; flex-direction: column; overflow: hidden; width: 100%; max-width: var(--col); max-height: 92vh; max-height: 92dvh; border-radius: 14px 14px 0 0; background: var(--sheet-bg); }
+.sheet .grp-b { background: var(--sheet-cell); }
+.sheet .tap:active { background: var(--sheet-press); }
+.sheet:focus { outline: none; }
+@keyframes rise { from { transform: translateY(40px); opacity: .6; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: no-preference) { .sheet { animation: rise .25s cubic-bezier(.2, .8, .2, 1); } }
+.grab { flex: none; width: 36px; height: 5px; margin: 6px auto 0; border-radius: 3px; background: var(--label-3); }
+.sh-nav {
+  flex: none; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; min-height: 48px;
+  padding-left: max(10px, env(safe-area-inset-left, 0px)); padding-right: max(10px, env(safe-area-inset-right, 0px));
+}
+.sh-nav > :first-child { justify-self: start; }
+.sh-nav > :last-child { justify-self: end; }
+.sh-nav h2 { max-width: 13em; overflow: hidden; font-size: 17px; font-weight: 600; text-align: center; white-space: nowrap; text-overflow: ellipsis; }
+.sh-body {
+  flex: 1; overflow-y: auto; overscroll-behavior: contain;
+  padding-block: 8px calc(28px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(140px + env(safe-area-inset-bottom, 0px)); z-index: 30; transform: translateX(-50%);
+  width: max-content; max-width: min(90vw, 26rem); padding: 12px 18px; border-radius: 14px;
+  background: var(--hud); color: var(--on-color); font-size: 15px; font-weight: 500; text-align: center;
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+}
+.toast { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.toast-btn { flex: none; min-height: 34px; padding: 0 14px; border: 0; border-radius: 10px; background: rgba(255, 255, 255, .2); color: var(--on-color); font-size: 15px; font-weight: 700; cursor: pointer; }
+.ohead { width: 100%; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; }
+.ohead:active { opacity: .6; }
+.tip { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; padding: 14px 16px; border-radius: 14px; background: var(--blue-tint); }
+.tip .main { gap: 4px; }
+.tip .t { font-weight: 600; }
+.tip .s { line-height: 1.45; }
+.cell.sugg { display: block; }
+.sugg-h { margin-bottom: 8px; font-size: 13px; color: var(--label-2); }
+.ptr { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 8px); left: 50%; z-index: 15; transform: translateX(-50%); padding: 6px 14px; border-radius: 16px; background: var(--hud); color: var(--on-color); font-size: 13px; font-weight: 600; pointer-events: none; }
+@keyframes slideL { from { transform: translateX(28px); opacity: .35; } to { transform: none; opacity: 1; } }
+@keyframes slideR { from { transform: translateX(-28px); opacity: .35; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: no-preference) {
+  .slide-l { animation: slideL .22s ease-out; }
+  .slide-r { animation: slideR .22s ease-out; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="lhead">
+    <h1 class="ltitle" id="ltText">帳本</h1>
+    <button class="avatar" id="avatar" type="button" data-act="me" aria-haspopup="dialog" hidden></button>
+  </header>
+  <main id="view"></main>
+</div>
+
+<button class="fab" id="fab" type="button" data-act="new" aria-label="新增" aria-haspopup="dialog" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+
+<nav class="tabbar" id="tabbar" aria-label="分頁" hidden>
+  <div class="tabbar-in">
+    <button class="tab" type="button" data-act="tab" data-tab="ledger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/><path d="M9 8h6"/></svg><span>帳本</span></button>
+    <button class="tab" type="button" data-act="tab" data-tab="items"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12l3 5-9 11L3 9z"/><path d="M3 9h18"/></svg><span>物品</span></button>
+    <button class="tab" type="button" data-act="tab" data-tab="log"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor" stroke="none"/></svg><span>紀錄</span></button>
+  </div>
+</nav>
+
+<div class="sheet-wrap" id="sheetWrap" hidden>
+  <div class="scrim" data-act="close"></div>
+  <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" tabindex="-1"></section>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<div class="ptr" id="ptr" aria-hidden="true" hidden>往下拉更新</div>
+
+<script src="items.js"></script>
+<script>
+(() => {
+'use strict';
+
+/* ---------- 後台與身分：專屬網址 #k=代碼，第一次打開後記在這支手機 ---------- */
+const API = 'https://script.google.com/macros/s/AKfycbxzEq5mXc9yk7nABc8rh47o_ycnjzV0RV1_A31OB76vWjsxa2pAaU0DVS3WQ-FqSUGS6g/exec';
+const KEY_STORE = 'zhangben-key';
+let KEY = '';
+let M = [];      // 人：每個人一個專屬網址
+let AL = {};     // 同一個人的其他角色 → 那個人；用同一個網址切換，錢每一隻分開算
+let NAMES = [];  // 選人時列出的名字：每個人後面接他的其他角色
+const who = n => Object.prototype.hasOwnProperty.call(AL, n) ? AL[n] : n;
+const isMe = n => who(n) === S.me;
+// 這個網址能用的角色（自己＋其他角色）；S.as = 現在用哪一隻記帳，首頁只算這一隻的錢
+const myChars = () => [S.me, ...Object.keys(AL).filter(a => AL[a] === S.me)];
+const AS_STORE = 'zhangben-as';
+const CUR = { tb: '天幣', nt: '台幣' };
+const TZ = 'Asia/Taipei';
+const now = () => new Date().toISOString();
+const newId = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+// 同一個表單沒存成功再按一次時，沿用同一組編號，後台就不會記兩次
+const idFor = (ctx, slot) => { ctx.ids = ctx.ids || {}; return ctx.ids[slot] || (ctx.ids[slot] = newId(slot === 'i' ? 'i' : 'e')); };
+const S = { me: '', as: '', tab: 'ledger', seen: {}, entries: [], items: [], loaded: false, error: '' };
+const TABS = ['ledger', 'items', 'log'];
+const UA = navigator.userAgent || '';
+const IS_IOS = /iPhone|iPad|iPod/.test(UA) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(UA));
+const IS_ANDROID = /Android/i.test(UA);
+// 從主畫面的圖示打開（沒有瀏覽器的網址列）
+const STANDALONE = navigator.standalone === true || !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+const A2HS_KEY = 'zhangben-a2hs-ok';
+// 官方百科的物品名稱（items.js）；打字時拿來提示正式名稱
+const OFFICIAL = Array.isArray(window.OFFICIAL_ITEMS) ? window.OFFICIAL_ITEMS : [];
+const OFFICIAL_SET = new Set(OFFICIAL);
+
+function initKey() {
+  const m = location.hash.match(/k=([A-Za-z0-9_-]+)/);
+  if (m) KEY = m[1];
+  else { try { KEY = localStorage.getItem(KEY_STORE) || ''; } catch (_) { KEY = ''; } }
+  if (!KEY) return;
+  try { localStorage.setItem(KEY_STORE, KEY); } catch (_) {}
+  // 網址一直帶著 #k=…：加入主畫面、加書籤，或手機清掉網站資料後，都還認得是誰
+  if (!m) { try { history.replaceState(null, '', location.pathname + location.search + '#k=' + KEY); } catch (_) {} }
+}
+async function api(action, body) {
+  let res;
+  try {
+    res = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ k: KEY, action, as: S.as }, body || {})) });
+  } catch (_) {
+    throw new Error('連不上網路，請再試一次。');
+  }
+  let data;
+  try { data = await res.json(); } catch (_) { throw new Error('帳本暫時連不上，請稍後再試。'); }
+  if (!data.ok) { const err = new Error(data.error || '出了點問題，請再試一次。'); err.code = data.code; throw err; }
+  return data;
+}
+function applyData(d) {
+  S.me = d.me; M = d.members; S.seen = { [d.me]: d.seen || '' };
+  AL = d.alias && typeof d.alias === 'object' ? d.alias : {};
+  NAMES = M.flatMap(p => [p, ...Object.keys(AL).filter(a => AL[a] === p)]);
+  let as = S.as;
+  if (!as) { try { as = localStorage.getItem(AS_STORE) || ''; } catch (_) { as = ''; } }
+  S.as = myChars().includes(as) ? as : d.me;
+  S.entries = d.entries; S.items = d.items; S.loaded = true; S.error = '';
+}
+function setAs(p) {
+  if (!myChars().includes(p)) return;
+  S.as = p;
+  try { localStorage.setItem(AS_STORE, p); } catch (_) {}
+}
+let loading = false;
+// 抓最新的帳；quiet = 背景自動更新，失敗也不吵
+async function load(quiet) {
+  if (!KEY || loading) return false;
+  loading = true;
+  let good = false;
+  try { applyData(await api('load')); good = true; }
+  catch (err) {
+    if (err.code === 'key') S.loaded = false;
+    if (!S.loaded) S.error = err.message;
+    else if (!quiet) toast('沒更新到：' + err.message);
+  }
+  finally { loading = false; }
+  render();
+  return good;
+}
+
+/* ---------- 格式：天幣寫成 1500、99萬9000、210萬 ---------- */
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const nf0 = new Intl.NumberFormat('zh-TW');
+function tbStr(v) {
+  v = Math.round(v);
+  if (v < 0) return '−' + tbStr(-v);
+  const yi = Math.floor(v / 1e8), wan = Math.floor((v % 1e8) / 1e4), rest = v % 1e4;
+  let s = '';
+  // 不補「零」：66萬664、1億500萬（11/08 Ethan 選的寫法）
+  if (yi) s += yi + '億';
+  if (wan) s += wan + '萬';
+  if (rest) s += rest;
+  return s || '0';
+}
+const money = (v, cur) => cur === 'tb' ? tbStr(v) : nf0.format(Math.round(v)) + '元';
+const moneyFull = (v, cur) => cur === 'tb' ? tbStr(v) + '天幣' : money(v, cur);
+const signed = (v, cur) => v > 0 ? '+' + money(v, cur) : v < 0 ? '−' + money(-v, cur) : '0';
+const cls = v => v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero';
+// 直接填天幣；有人打「500萬」或「500w」也認得
+function parseAmt(s, cur) {
+  let t = String(s).replace(/[,，\s]/g, ''), mul = 1;
+  if (cur === 'tb' && /[萬wW]$/.test(t)) { mul = 1e4; t = t.slice(0, -1); }
+  const v = parseFloat(t);
+  if (!isFinite(v) || v <= 0) return 0;
+  return Math.round(v * mul);
+}
+const fKey = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+const fDay = new Intl.DateTimeFormat('zh-TW', { timeZone: TZ, month: 'long', day: 'numeric', weekday: 'short' });
+const fHM = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
+const fMD = new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'numeric', day: 'numeric' });
+const dayKey = t => fKey.format(new Date(t));
+const hm = t => fHM.format(new Date(t));
+const md = t => fMD.format(new Date(t));
+function dayLabel(t) {
+  const k = dayKey(t), b = fDay.format(new Date(t));
+  if (k === dayKey(Date.now())) return '今天 · ' + b;
+  if (k === dayKey(Date.now() - 864e5)) return '昨天 · ' + b;
+  return b;
+}
+const unitOf = name => /卷軸|卷|符|券/.test(name) ? '張' : '個';
+
+/* ---------- 算帳：每筆記下就算數 ---------- */
+function shares(e) {
+  const n = e.to.length, b = Math.floor(e.amt / n), rem = e.amt - b * n;
+  const m = new Map(e.to.map(p => [p, b]));
+  // 零頭給錢在他身上的那隻（他有份的話；不然他的其他角色），都沒有就給第一個有份的
+  if (rem) { const k = e.to.includes(e.from) ? e.from : (e.to.find(p => who(p) === who(e.from)) || e.to[0]); m.set(k, m.get(k) + rem); }
+  return m;
+}
+// 一筆帳讓誰欠誰：[債主, 欠錢的那隻, 金額]，每一隻角色分開算。代購金在「結算」之前不算進來
+function flows(e) {
+  if (e.type === 'order' || e.type === 'obuy' || e.type === 'deliver') return [];
+  if (e.type === 'split') return [...shares(e)].filter(([p, v]) => p !== e.from && v).map(([p, v]) => [p, e.from, v]);
+  return e.amt ? [[e.from, e.to[0], e.amt]] : [];
+}
+// 這筆讓「b 欠 a」多了多少（負數 = a 欠 b 多了）
+function pairDelta(e, a, b) {
+  let s = 0;
+  for (const [c, d, v] of flows(e)) { if (c === a && d === b) s += v; else if (c === b && d === a) s -= v; }
+  return s;
+}
+// b 欠 a 多少（負數 = a 欠 b）
+const bal = (a, b, cur) => S.entries.reduce((s, e) => (e.voided || e.cur !== cur ? s : s + pairDelta(e, a, b)), 0);
+
+/* ---------- 代購金：每批照實際價錢扣，收完再結算 ---------- */
+const findE = id => S.entries.find(e => e.id === id);
+const findI = id => S.items.find(i => i.id === id);
+const ofType = (o, t) => S.entries.filter(e => !e.voided && e.orderId === o.id && e.type === t);
+const spentOf = o => ofType(o, 'obuy').reduce((s, e) => s + e.amt, 0);
+const boughtOf = o => ofType(o, 'obuy').reduce((s, e) => s + e.qty, 0);
+const deliveredOf = o => ofType(o, 'deliver').reduce((s, e) => s + e.qty, 0);
+const endOf = o => ofType(o, 'oend')[0] || null;
+const orderShown = o => o.type === 'order' && !o.voided && (!endOf(o) || deliveredOf(o) < boughtOf(o));
+const lastUnit = o => { const b = ofType(o, 'obuy'); return b.length ? b[b.length - 1].unit : 0; };
+
+/* ---------- 打到的東西（可以好幾張、分次賣，每次價錢不同） ---------- */
+const salesOf = i => S.entries.filter(e => e.itemId === i.id && e.type === 'split' && !e.voided);
+const leftOf = i => i.qty - salesOf(i).reduce((s, e) => s + (e.qty || 1), 0);
+const itemOpen = i => i.status !== 'void' && (i.kind === 'loot' ? leftOf(i) > 0 : i.status === 'open');
+function soldSummary(i) {
+  const u = unitOf(i.name), ss = salesOf(i), sold = ss.filter(e => !e.kept), kept = ss.filter(e => e.kept);
+  const parts = [];
+  if (sold.length) parts.push(`賣了 ${sold.reduce((s, e) => s + (e.qty || 1), 0)} ${u}，${money(sold.reduce((s, e) => s + e.amt, 0), sold[0].cur)}`);
+  if (kept.length) parts.push(`留了 ${kept.reduce((s, e) => s + (e.qty || 1), 0)} ${u}自己用`);
+  return parts.join(' · ') || '已處理';
+}
+const orderLocked = e => e.type === 'order' && (ofType(e, 'obuy').length || ofType(e, 'deliver').length || endOf(e));
+const batchLocked = e => { const o = e.type === 'obuy' && findE(e.orderId); return !!(o && endOf(o)); };
+const canVoidE = e => !e.voided && !orderLocked(e) && !batchLocked(e) && (isMe(e.by) || isMe(e.from) || e.to.some(isMe));
+const canVoidItem = i => i.kind === 'loot' && i.status !== 'void' && salesOf(i).length === 0 && (isMe(i.by) || isMe(i.holder) || i.owners.some(isMe));
+
+/* ---------- 新紀錄：對方在你上次看紀錄之後新增或作廢的 ---------- */
+function events() {
+  const ev = S.entries.map(e => ({ k: 'e', t: e.t, e }));
+  for (const i of S.items) {
+    if (i.kind === 'loot' && !i.direct) ev.push({ k: 'add', t: i.t, i });
+    if (i.kind === 'buy' && i.status === 'handed' && i.closedT) ev.push({ k: 'hand', t: i.closedT, i });
+  }
+  return ev.sort((a, b) => (a.t < b.t ? 1 : a.t > b.t ? -1 : 0));
+}
+function newFlags(x, me) {
+  if (x.k === 'hand') return { add: false, vd: false };
+  const o = x.k === 'e' ? x.e : x.i, seen = S.seen[me] || '';
+  return { add: who(o.by) !== me && o.t > seen, vd: !!(o.voided && who(o.voided.by) !== me && o.voided.t > seen) };
+}
+function newCounts(me) {
+  let a = 0, v = 0;
+  const by = new Set();
+  for (const x of events()) {
+    const f = newFlags(x, me), o = x.k === 'e' ? x.e : x.i;
+    if (f.add) { a++; by.add(o.by); }
+    if (f.vd) { v++; by.add(o.voided.by); }
+  }
+  return { a, v, by: NAMES.filter(p => by.has(p)) };
+}
+
+/* ---------- 文字 ---------- */
+const typeLabel = e => ({ loan: '借錢', repay: '還錢', buy: '代墊', order: '代購', obuy: '收了一批', deliver: '交貨', oend: '代購結算', split: e.kept ? '留著自己用' : '分寶' })[e.type];
+function title(e) {
+  const q = e.qty > 1 ? ` ×${e.qty}` : '', u = unitOf(e.item || '');
+  switch (e.type) {
+    case 'loan': return `${e.from} 借給 ${e.to[0]}`;
+    case 'repay': return `${e.from} 還 ${e.to[0]}`;
+    case 'buy': return `${e.from} 幫 ${e.to[0]} 代墊「${e.item}」`;
+    case 'order': return `${e.from} 給 ${e.to[0]} 代購金「${e.item}」`;
+    case 'obuy': return `${e.from} 收了「${e.item}」${e.qty} ${u}`;
+    case 'deliver': return `${e.from} 交給 ${e.to[0]}「${e.item}」${e.qty} ${u}`;
+    case 'oend': return e.amt ? `「${e.item}」代購結算：${e.to[0]} 要${e.refund ? '退' : '補'} ${e.from}` : `「${e.item}」代購結算：剛好用完`;
+    default: return e.kept ? `${e.from} 留著「${e.item}」${q}自己用` : `${e.from} 賣掉「${e.item}」${q}`;
+  }
+}
+function effect(e, full) {
+  const f = v => full ? moneyFull(v, e.cur) : money(v, e.cur), u = unitOf(e.item || '');
+  switch (e.type) {
+    case 'repay': return full ? `${e.from} 還 ${e.to[0]} ${f(e.amt)}` : '';
+    case 'deliver': return '';
+    case 'order': {
+      if (e.voided) return '';
+      const sp = spentOf(e), b = boughtOf(e), un = b - deliveredOf(e), left = e.amt - sp;
+      if (endOf(e)) return `已結算：收了 ${b} ${u}，花了 ${money(sp, e.cur)}` + (un > 0 ? `，還沒交 ${un} ${u}` : '');
+      return `花了 ${money(sp, e.cur)}，${left >= 0 ? `剩 ${money(left, e.cur)}` : `超過 ${money(-left, e.cur)}`}；收了 ${b} ${u}，還沒交 ${un} ${u}`;
+    }
+    case 'obuy': return `每${u} ${money(e.unit, e.cur)} × ${e.qty} ${u}`;
+    case 'oend': {
+      const o = findE(e.orderId);
+      return o ? `給了 ${money(o.amt, e.cur)}，花了 ${money(o.amt + (e.refund ? -e.amt : e.amt), e.cur)}` : '';
+    }
+    case 'split': {
+      const sh = shares(e), others = e.to.filter(p => p !== e.from);
+      const head = `${e.kept ? '講好' : '賣'} ${f(e.amt)}`;
+      if (!others.length) return head;
+      const vals = others.map(p => sh.get(p));
+      if (vals.every(v => v === vals[0])) return `${head}；${e.from} 要分給 ${others.join('、')}${others.length > 1 ? ' 各' : ''} ${f(vals[0])}`;
+      return `${head}；` + others.map(p => `${e.from} 要分給 ${p} ${f(sh.get(p))}`).join('；');
+    }
+  }
+  return `${e.to[0]} 欠 ${e.from} ${f(e.amt)}`;
+}
+// 從「我」的角度說這筆是什麼意思
+function myView(e, me) {
+  const f = v => moneyFull(v, e.cur), im = p => p === me; // 只有現在這一隻算「你」；其他角色的錢分開算
+  switch (e.type) {
+    case 'loan': return im(e.from) ? `${e.to[0]} 欠你 ${f(e.amt)}` : im(e.to[0]) ? `你欠 ${e.from} ${f(e.amt)}` : '';
+    case 'repay': return im(e.from) ? `你還了 ${e.to[0]} ${f(e.amt)}` : im(e.to[0]) ? `${e.from} 還了你 ${f(e.amt)}` : '';
+    case 'buy': return im(e.from) ? `${e.to[0]} 欠你 ${f(e.amt)}（你代墊的）` : im(e.to[0]) ? `你欠 ${e.from} ${f(e.amt)}（對方代墊的）` : '';
+    case 'split': {
+      const sh = shares(e);
+      if (im(e.from)) {
+        const others = e.to.filter(p => !im(p));
+        if (!others.length) return '';
+        return `你要分給 ${others.join('、')}${others.length > 1 ? ' 各' : ''} ${f(sh.get(others[0]))}`;
+      }
+      const got = e.to.filter(im).reduce((s, p) => s + sh.get(p), 0);
+      return got ? `${e.from} 要分給你 ${f(got)}` : '';
+    }
+    case 'oend':
+      if (!e.amt) return '剛好用完，不用退也不用補';
+      return im(e.to[0]) ? `你要${e.refund ? '退' : '補'} ${e.from} ${f(e.amt)}` : im(e.from) ? `${e.to[0]} 要${e.refund ? '退' : '補'}你 ${f(e.amt)}` : '';
+  }
+  return '';
+}
+
+/* ---------- 共用的蘋果風元件 ---------- */
+const ICON = {
+  up: '<path d="M7 17L17 7"/><path d="M9 7h8v8"/>',
+  down: '<path d="M17 7L7 17"/><path d="M15 17H7V9"/>',
+  gem: '<path d="M6 4h12l3 5-9 11L3 9z"/><path d="M3 9h18"/>',
+  cart: '<path d="M3 4h2l2.4 11h10.2L20 8H6.2"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="16.5" cy="19.5" r="1.3"/>',
+  box: '<path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M4 8l8 4 8-4"/><path d="M12 12v8"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  bag: '<path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
+  bell: '<path d="M6 10a6 6 0 0 1 12 0c0 5.5 2.5 7 2.5 7h-17S6 15.5 6 10z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+  plus: '<rect x="4" y="4" width="16" height="16" rx="4.5"/><path d="M12 8.5v7M8.5 12h7"/>',
+};
+const ico = (n, c) => `<span class="ic" style="background:var(--c-${c})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n]}</svg></span>`;
+const CHEV = '<svg class="chev" viewBox="0 0 8 14" width="8" height="14" aria-hidden="true"><path d="M1.5 1.5L6.5 7l-5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const TYPE_UI = { loan: ['up', 'blue'], repay: ['down', 'green'], buy: ['bag', 'purple'], order: ['cart', 'indigo'], obuy: ['cart', 'indigo'], deliver: ['box', 'indigo'], oend: ['check', 'indigo'], split: ['gem', 'orange'] };
+const group = (head, body, foot) => `<div class="grp">${head ? `<div class="grp-h">${head}</div>` : ''}<div class="grp-b">${body}</div>${foot ? `<div class="grp-f">${foot}</div>` : ''}</div>`;
+const kv = (k, v, vc = '') => `<div class="cell kv"><span class="k">${esc(k)}</span><span class="v ${vc}">${esc(v)}</span></div>`;
+const seg = (name, list, sel, lab = x => x) => `<div class="segc" role="radiogroup">${list.map((p, i) => `<label><input type="radio" name="${name}" id="${name}-${i}" value="${esc(p)}"${p === sel ? ' checked' : ''}><span>${esc(lab(p))}</span></label>`).join('')}</div>`;
+// 名字後面的小註記：（你）、（你的角色）、（某某的角色）
+const tagOf = p => p === S.as ? '（你）' : isMe(p) ? '（你的角色）' : who(p) === p ? '' : `（${esc(who(p))}的角色）`;
+const checks = (name, list, sel) => list.map((p, i) => `<label class="cell chk"><input type="checkbox" name="${name}" id="${name}-${i}" value="${esc(p)}"${sel.includes(p) ? ' checked' : ''}><span class="t">${esc(p)}${tagOf(p)}</span><span class="mark" aria-hidden="true">✓</span></label>`).join('');
+// 「誰有份」下面的說明：同一個人的兩隻角色，錢分開算
+const aliasNote = () => Object.keys(AL).filter(a => M.includes(AL[a])).map(a => `${esc(a)} 是 ${esc(AL[a])} 的另一隻角色，錢分開算；兩隻都有份就兩隻都勾。`).join('');
+const CHIPS = { tb: [[10000, '+1萬'], [100000, '+10萬'], [1000000, '+100萬'], [10000000, '+1000萬']], nt: [[100, '+100'], [1000, '+1000'], [10000, '+1萬']] };
+const chipsHTML = cur => CHIPS[cur].map(([v, l]) => `<button class="qchip" type="button" data-act="addamt" data-v="${v}">${l}</button>`).join('') + '<button class="qchip" type="button" data-act="addamt" data-v="0">清除</button>';
+const stateHTML = (t, s, retry) => group('', `<div class="cell"><span class="main"><span class="t">${esc(t)}</span><span class="s">${esc(s)}</span></span></div>${retry ? '<button class="cell tap act" type="button" data-act="reload">再試一次</button>' : ''}`);
+
+/* ---------- 第一次用手機瀏覽器打開：教怎麼加到主畫面 ---------- */
+function a2hsTip() {
+  if (STANDALONE || !(IS_IOS || IS_ANDROID)) return '';
+  try { if (localStorage.getItem(A2HS_KEY)) return ''; } catch (_) {}
+  const how = / Line\//i.test(UA) ? '你現在是在 LINE 裡面打開的，先從 LINE 的選單改用 Safari（Android 用 Chrome）開啟，再加到主畫面。'
+    : IS_IOS ? '按 Safari 的「分享」（找不到就先按「⋯」）→「加入主畫面」。'
+    : '按 Chrome 右上角的「⋮」→「加到主畫面」。';
+  return `<div class="tip" role="note">${ico('plus', 'blue')}<div class="main"><span class="t">把帳本加到主畫面</span><span class="s">${how}以後點桌面上的「帳」就能直接打開，也一直認得是你。</span><div class="row"><button class="btn btn-tint btn-sm" type="button" data-act="a2hs-ok">知道了</button></div></div></div>`;
+}
+
+/* ---------- 畫面：帳本 ---------- */
+function vLedger() {
+  const A = S.as, multi = myChars().length > 1;
+  const rows = NAMES.filter(p => p !== A).map(y => ({ y, tb: bal(A, y, 'tb'), nt: bal(A, y, 'nt') })).filter(r => r.tb || r.nt);
+  // 合計：每一隻角色都算進來，同一個人的兩隻之間的帳也算；兩個方向都有時寫收支相抵後的數字
+  const pay = rows.reduce((s, r) => s + (r.tb < 0 ? -r.tb : 0), 0), recv = rows.reduce((s, r) => s + (r.tb > 0 ? r.tb : 0), 0), net = recv - pay;
+  const ntNet = rows.reduce((s, r) => s + r.nt, 0);
+  const orders = S.entries.filter(e => orderShown(e) && (e.from === A || e.to[0] === A));
+  const openItems = S.items.filter(itemOpen).length;
+  const nc = newCounts(S.me);
+  let h = a2hsTip();
+  // 同一個網址有好幾隻角色：最上面寫現在用哪一隻，點一下就能換
+  if (multi) h += `<button class="asbar" type="button" data-act="me">現在用 <b>${esc(A)}</b> 記帳<span class="sw">切換</span>${CHEV}</button>`;
+  const head = pay && recv ? (net < 0 ? '收支相抵後，你要給' : net > 0 ? '收支相抵後，別人要給你' : '收支相抵後剛好打平') : pay ? '你總共要給' : recv ? '總共要給你' : '天幣已經結清';
+  h += `<section class="hero" aria-label="我的帳"><p class="k">${head}</p><p class="n ${cls(net)}">${money(Math.abs(net), 'tb')}<small>天幣</small></p>`;
+  if (pay && recv) h += `<p class="nt">你要給 <b class="neg">${money(pay, 'tb')}</b> · 別人要給你 <b class="pos">${money(recv, 'tb')}</b></p>`;
+  if (rows.some(r => r.nt)) h += `<p class="nt">台幣${ntNet < 0 ? `：你要給 <b class="neg">${money(-ntNet, 'nt')}</b>` : ntNet > 0 ? `：別人要給你 <b class="pos">${money(ntNet, 'nt')}</b>` : '剛好打平'}</p>`;
+  if (rows.length) h += `<div class="plist">${rows.map(prow).join('')}</div>`;
+  h += '</section>';
+  const links = [];
+  if (nc.a || nc.v) {
+    const who2 = nc.by.length ? nc.by.join('、') : '對方';
+    const txt = nc.a ? `${who2} 新增了 ${nc.a} 筆${nc.v ? `、作廢了 ${nc.v} 筆` : ''}` : `${who2} 作廢了 ${nc.v} 筆`;
+    links.push(`<button class="cell tap ic-row" type="button" data-act="tab" data-tab="log">${ico('bell', 'blue')}<span class="main"><span class="t">${esc(txt)}</span></span>${CHEV}</button>`);
+  }
+  if (openItems) links.push(`<button class="cell tap ic-row" type="button" data-act="tab" data-tab="items">${ico('gem', 'orange')}<span class="main"><span class="t">還沒處理的物品</span></span><span class="s">${openItems} 件</span>${CHEV}</button>`);
+  if (links.length) h += group('', links.join(''));
+  if (orders.length) h += group('代購中', orders.map(orderCell).join(''), '代購金在結算前不算在上面的錢裡；收完按「結算」，剩下或超過的錢才會算進來。');
+  h += `<p class="foot">每一筆記下就算數，兩邊馬上看得到。記錯了就到「紀錄」點那一筆作廢。${rows.length > 1 ? '每一隻角色的錢分開算、各自結清；最上面的大字只是合計，轉帳時還是每一隻各自按「我轉了」或「我收到了」。' : ''}</p>`;
+  return h;
+}
+// 跟某一隻角色之間的帳：一行（點左邊看明細，右邊是「我轉了／我收到了」）
+function prow({ y, tb, nt }) {
+  const main = tb || nt, cur = tb ? 'tb' : 'nt';
+  const dir = (tb ? '' : '台幣') + (main < 0 ? '你要給' : '要給你');
+  const extra = tb && nt ? `台幣${nt > 0 ? '要給你' : '你要給'} ${money(Math.abs(nt), 'nt')}` : '';
+  const btn = main < 0
+    ? `<button class="btn btn-fill btn-sm" type="button" data-act="settle" data-dir="pay" data-with="${esc(y)}">我轉了</button>`
+    : `<button class="btn btn-tint btn-sm" type="button" data-act="settle" data-dir="recv" data-with="${esc(y)}">我收到了</button>`;
+  return `<div class="prow"><button class="pmain" type="button" data-act="calc" data-with="${esc(y)}"><span class="pn">${esc(y)}</span><span class="ps">${esc(dir)}${extra ? ' · ' + esc(extra) : ''} · <b>明細 ›</b></span></button><span class="pa ${cls(main)}">${money(Math.abs(main), cur)}</span>${btn}</div>`;
+}
+function orderCell(o) {
+  const u = unitOf(o.item), agent = o.to[0], buyer = o.from, mf = v => money(v, o.cur), agentMe = agent === S.as;
+  const sp = spentOf(o), left = o.amt - sp, bought = boughtOf(o), undel = bought - deliveredOf(o), ended = !!endOf(o);
+  const pct = Math.min(100, o.amt ? sp / o.amt * 100 : 0);
+  let acts = '';
+  if (agentMe) {
+    if (!ended) acts += `<button class="btn btn-fill btn-sm" type="button" data-act="o-buy" data-id="${o.id}">收了一批</button>`;
+    if (undel > 0) acts += `<button class="btn btn-tint btn-sm" type="button" data-act="o-deliver" data-id="${o.id}">交貨</button>`;
+    if (!ended) acts += `<button class="btn btn-tint btn-sm" type="button" data-act="o-end" data-id="${o.id}">結算</button>`;
+  } else if (undel > 0) {
+    acts += `<button class="btn btn-tint btn-sm" type="button" data-act="o-deliver" data-id="${o.id}">收到幾${u}</button>`;
+  }
+  return `<div class="cell ocell">
+    <button class="ohead" type="button" data-act="order" data-id="${o.id}">${ico('cart', 'indigo')}<span class="main"><span class="t">${esc(o.item)}</span><span class="s">${esc(agentMe ? `${buyer} 給你的代購金` : `你給 ${agent} 的代購金`)}</span></span><span class="s">明細</span>${CHEV}</button>
+    ${ended ? '<p class="s">已經結算</p>' : `<div class="prog${left < 0 ? ' over' : ''}"><i style="width:${pct.toFixed(1)}%"></i></div>
+    <p class="s">已用 ${mf(sp)} / ${mf(o.amt)} · ${left >= 0 ? `剩 <b>${mf(left)}</b>` : `<b class="neg">超過 ${mf(-left)}</b>`}</p>`}
+    <p class="s">收了 ${bought} ${u} · ${agentMe ? '還沒交' : '還沒交給你'} <b>${undel} ${u}</b></p>
+    ${acts ? `<div class="row">${acts}</div>` : ''}
+  </div>`;
+}
+
+/* ---------- 畫面：物品 ---------- */
+function vItems() {
+  const live = S.items.filter(i => i.status !== 'void');
+  const byNew = (a, b) => (a.t < b.t ? 1 : -1);
+  const open = live.filter(itemOpen).sort(byNew), done = live.filter(i => !itemOpen(i)).sort(byNew);
+  let h = group('還在身上', open.length ? open.map(itemCell).join('') : '<div class="cell"><span class="s">物品都處理完了。打到寶時按右下角的「＋」。</span></div>');
+  if (done.length) h += group('已處理', done.map(itemCell).join(''));
+  h += '<p class="foot">物品賣掉之前不算錢。點一下物品，可以記「賣掉了」或「留著自己用」。同一種物品可以分好幾次賣，每次記那次的價錢。</p>';
+  return h;
+}
+function itemCell(i) {
+  const u = unitOf(i.name), open = itemOpen(i), loot = i.kind === 'loot';
+  let sub;
+  if (loot) sub = open ? `在 ${i.holder} 身上 · ${i.qty > 1 ? `剩 ${leftOf(i)} ${u}` : '還沒賣'}` : soldSummary(i);
+  else sub = open ? `在 ${i.holder} 身上 · 要交給 ${i.owners[0]}` : `已交給 ${i.owners[0]}`;
+  return `<button class="cell tap ic-row" type="button" data-act="item" data-item="${i.id}">${ico(loot ? 'gem' : 'bag', loot ? 'orange' : 'purple')}<span class="main"><span class="t">${esc(i.name)}${i.qty > 1 ? ` <span class="q">×${i.qty}</span>` : ''}</span><span class="s">${esc(sub)}</span></span>${CHEV}</button>`;
+}
+
+/* ---------- 畫面：紀錄 ---------- */
+function vLog() {
+  const ev = events();
+  let h = '';
+  if (!ev.length) h += group('', '<div class="cell"><span class="s">還沒有紀錄。</span></div>');
+  let key = null, buf = [];
+  const flush = () => { if (buf.length) h += group(esc(dayLabel(buf[0].t)), buf.map(logCell).join('')); buf = []; };
+  for (const x of ev) { const k = dayKey(x.t); if (k !== key) { flush(); key = k; } buf.push(x); }
+  flush();
+  h += '<p class="foot">點一下可以看詳情或作廢。標「新」的，是對方在你上次看紀錄之後新增或作廢的。</p>';
+  return h;
+}
+function badgesFor(x, voided) {
+  const f = newFlags(x, S.me);
+  return (voided ? '<span class="badge gray">已作廢</span>' : '') + (f.add || f.vd ? `<span class="badge new">${f.vd && !f.add ? '新作廢' : '新'}</span>` : '');
+}
+function logCell(x) {
+  const me = S.as;
+  if (x.k === 'e') {
+    const e = x.e, [icn, col] = TYPE_UI[e.type];
+    const sub = myView(e, me) || effect(e, false) || (e.note ? `備註：${e.note}` : '');
+    const r = e.type === 'deliver' ? `<span class="r dim">${e.qty} ${unitOf(e.item)}</span>`
+      : `<span class="r${e.type === 'order' || e.type === 'obuy' ? ' dim' : ''}">${money(e.amt, e.cur)}</span>`;
+    const bd = badgesFor(x, !!e.voided);
+    return `<button class="cell tap ic-row lrow${e.voided ? ' void' : ''}" type="button" data-act="rec" data-id="${e.id}">${ico(icn, col)}<span class="main"><span class="t">${esc(title(e))}</span>${sub ? `<span class="s">${esc(sub)}</span>` : ''}${bd ? `<span class="bdg">${bd}</span>` : ''}</span>${r}</button>`;
+  }
+  const i = x.i;
+  if (x.k === 'add') {
+    const v = i.status === 'void', bd = badgesFor(x, v);
+    return `<button class="cell tap ic-row lrow${v ? ' void' : ''}" type="button" data-act="item" data-item="${i.id}">${ico('gem', 'orange')}<span class="main"><span class="t">打到「${esc(i.name)}」${i.qty > 1 ? ` ×${i.qty}` : ''}</span><span class="s">在 ${esc(i.holder)} 身上 · ${i.owners.length} 人有份</span>${bd ? `<span class="bdg">${bd}</span>` : ''}</span>${CHEV}</button>`;
+  }
+  return `<button class="cell tap ic-row lrow" type="button" data-act="item" data-item="${i.id}">${ico('box', 'gray')}<span class="main"><span class="t">「${esc(i.name)}」交給 ${esc(i.owners[0])}</span></span>${CHEV}</button>`;
+}
+
+/* ---------- 新增：選單和表單 ---------- */
+const MENU = [
+  ['錢', [['loan', '借錢', '天幣或台幣，借出借入都能記', 'up', 'blue'], ['repay', '還錢', '你還對方錢，或對方還你錢', 'down', 'green']]],
+  ['打寶', [['loot', '新增寶物', '打到東西，還沒賣', 'gem', 'orange'], ['sell', '賣掉分錢', '打到直接賣掉，不用先新增', 'gem', 'orange']]],
+  ['幫忙收東西', [['order', '代購', '先給錢，請人幫忙收', 'cart', 'indigo'], ['buy', '代墊', '先出錢幫人收，之後再還', 'bag', 'purple']]],
+];
+const LABELS = {
+  loan:  { title: '借錢', from: '誰借出', to: '借給誰', amt: '借多少' },
+  repay: { title: '還錢', from: '誰還錢', to: '還給誰', amt: '還多少' },
+  order: { title: '代購', from: '誰給錢', to: '請誰收', amt: '給了多少', item: '要收什麼' },
+  buy:   { title: '代墊', from: '誰先出錢', to: '幫誰收', amt: '花了多少', item: '收了什麼' },
+  loot:  { title: '新增寶物', from: '在誰身上', to: '誰有份', multi: true, item: '打到什麼', noMoney: true },
+  sell:  { title: '賣掉分錢', from: '錢在誰身上', to: '誰有份', multi: true, amt: '賣出的總價', item: '賣了什麼' },
+  isell: { title: '賣掉了', from: '錢在誰身上', to: null, amt: '這次賣出的總價' }, // 誰有份沿用新增寶物時填的
+  ikeep: { title: '留著自己用', from: '誰要留', to: null, amt: '講好的總價' },
+};
+function newDraft(type) {
+  const L = LABELS[type], A = S.as, two = M.length === 2, other = M.find(p => p !== S.me) || '';
+  // 誰有份預設：現在這一隻，加上別人的主角色（自己的另一隻也有份再勾）
+  const owners = NAMES.filter(p => p === A || (M.includes(p) && !isMe(p)));
+  let from = A, to = L.multi ? owners : (two ? [other] : []);
+  if (type === 'order' && two) { from = other; to = [A]; } // 通常是對方把錢給你
+  return { from, to, cur: 'tb', amt: '', item: '', note: '', keep: true, qty: '1' };
+}
+function qtyInfo(ctx) {
+  const t = ctx.type, it = ctx.item;
+  const max = it ? leftOf(it) : 999;
+  const u = it ? unitOf(it.name) : '個';
+  const show = t === 'loot' || t === 'sell' || ((t === 'isell' || t === 'ikeep') && max > 1);
+  const label = t === 'loot' ? '數量' : t === 'sell' ? '賣了幾個' : t === 'isell' ? `賣幾${u}` : `留幾${u}`;
+  return { show, max, u, label };
+}
+function formHTML(ctx) {
+  const { type, d } = ctx, L = LABELS[type], Q = qtyInfo(ctx);
+  const fromList = type === 'ikeep' ? ctx.item.owners : NAMES;
+  let h = '<form id="f" novalidate>';
+  if (L.item) {
+    const ph = type === 'order' || type === 'buy' ? '打幾個字找官方名稱，例：鎧甲' : '打幾個字找官方名稱，例：31樓';
+    h += group('', `<label class="cell field"><span class="k">${L.item}</span><input id="f-item" type="text" maxlength="30" autocomplete="off" placeholder="${ph}" value="${esc(d.item)}"></label><div class="cell sugg" id="f-sugg-cell" hidden><div class="sugg-h" id="f-sugg-h"></div><div class="qchips" id="f-sugg"></div></div>`, '<span id="f-item-hint"></span>');
+  }
+  if (type === 'isell') h += `<p class="foot tight">有份：${esc(ctx.item.owners.join('、'))}（新增時填的），賣掉的錢照這個分。</p>`;
+  if (type === 'ikeep') h += `<p class="foot tight">有份：${esc(ctx.item.owners.join('、'))}。留下的人照講好的價錢，把錢分給其他有份的人。</p>`;
+  if (L.to && !L.multi) {
+    h += group('', `<div class="cell pick"><span class="k">${L.from}</span>${seg('from', fromList, d.from)}</div><div class="cell pick"><span class="k">${L.to}</span>${seg('to', NAMES, d.to[0] || '')}</div>`);
+  } else {
+    h += group(L.from, `<div class="cell">${seg('from', fromList, d.from)}</div>`);
+    if (L.to) h += group(L.to, checks('to', NAMES, d.to), aliasNote());
+  }
+  if (Q.show) h += group('', `<label class="cell field"><span class="k">${Q.label}</span><input id="f-qty" type="text" inputmode="numeric" autocomplete="off" placeholder="0" value="${esc(d.qty)}"><span class="sfx">${Q.u}</span></label>`, Q.max < 999 ? `還剩 ${Q.max} ${Q.u}` : '');
+  if (!L.noMoney) {
+    h += group(L.amt, `<div class="cell">${seg('cur', ['tb', 'nt'], d.cur, k => CUR[k])}</div><div class="cell amt-cell"><input id="f-amt" type="text" inputmode="decimal" autocomplete="off" placeholder="0" aria-label="${L.amt}" value="${esc(d.amt)}"><span class="u" id="f-unit">天幣</span></div><div class="cell"><div class="qchips" id="f-chips" data-cur="${d.cur}">${chipsHTML(d.cur)}</div></div>`, '<span id="f-amt-hint"></span>');
+  }
+  if (type === 'buy') h += group('', `<label class="cell sw"><span class="t">東西還在出錢的人身上，記到物品清單</span><input type="checkbox" class="switch" id="f-keep"${d.keep ? ' checked' : ''}></label>`);
+  h += group('', `<label class="cell field"><span class="k">備註</span><input id="f-note" type="text" maxlength="40" autocomplete="off" placeholder="${type === 'repay' ? '例：用台幣 500 元還' : '可不填'}" value="${esc(d.note)}"></label>`);
+  h += '<div class="sum" id="f-prev" aria-live="polite" hidden></div><p class="need" id="f-need"></p></form>';
+  return h;
+}
+function readForm(ctx) {
+  const f = sheet.querySelector('#f'), d = ctx.d;
+  const pick = n => [...f.querySelectorAll(`input[name="${n}"]:checked`)].map(x => x.value);
+  const g = id => f.querySelector('#' + id);
+  d.from = pick('from')[0] || '';
+  if (LABELS[ctx.type].to) d.to = pick('to');
+  const k = pick('cur')[0]; if (k) d.cur = k;
+  if (g('f-item')) d.item = g('f-item').value.trim();
+  if (g('f-amt')) d.amt = g('f-amt').value;
+  if (g('f-qty')) d.qty = g('f-qty').value.trim();
+  if (g('f-note')) d.note = g('f-note').value.trim();
+  if (g('f-keep')) d.keep = g('f-keep').checked;
+}
+function draftEval(ctx) {
+  const { type, d } = ctx, L = LABELS[type], Q = qtyInfo(ctx);
+  const item = ctx.item ? ctx.item.name : d.item;
+  if (L.item && !d.item) return { need: `還沒填：${L.item}` };
+  if (!d.from) return { need: `還沒填：${L.from}` };
+  if (L.to && !d.to.length) return { need: `還沒填：${L.to}` };
+  let qty = 1;
+  if (Q.show) {
+    qty = parseInt(d.qty, 10);
+    if (!(qty >= 1)) return { need: `還沒填：${Q.label}` };
+    if (qty > Q.max) return { need: `最多 ${Q.max} ${Q.u}` };
+  }
+  if (type === 'loot') return { ok: true, qty, prev: `「${item}」${qty > 1 ? ` ×${qty}` : ''} 放進物品清單，在 ${d.from} 身上，${d.to.length} 人有份。賣掉時再分錢。` };
+  let e;
+  // 已經新增過的東西：誰有份照新增時填的，不再問一次
+  if (type === 'ikeep' || type === 'isell') e = { type: 'split', kept: type === 'ikeep', from: d.from, to: ctx.item.owners.slice(), qty };
+  else if (L.multi) e = { type: 'split', from: d.from, to: d.to.slice(), qty };
+  else {
+    if (d.to[0] === d.from) return { need: '兩邊不能是同一個角色' };
+    e = { type, from: d.from, to: [d.to[0]] };
+  }
+  Object.assign(e, { amt: parseAmt(d.amt, d.cur), cur: d.cur, item });
+  if (!e.amt) return { need: `還沒填：${L.amt}` };
+  // 直接記「賣掉分錢」時才擋；新增過的東西就算只有一個人有份，也要能記賣掉，東西才會從清單上收起來
+  if (type === 'sell' && e.to.every(p => p === e.from)) return { need: '只有錢在他身上的那隻有份，不用分錢' };
+  let prev;
+  if (type === 'order') prev = `${e.to[0]} 先拿著 ${e.from} 的代購金 ${moneyFull(e.amt, e.cur)}，收「${item}」用；每收一批照實際價錢扣，收完再結算。`;
+  else {
+    prev = effect(e, true);
+    if (type === 'buy' && d.keep) prev += `；「${item}」放進物品清單，在 ${e.from} 身上`;
+    if ((type === 'isell' || type === 'ikeep') && ctx.item.qty > 1) prev += `（${type === 'isell' ? '賣' : '留'} ${qty} ${Q.u}，還剩 ${Q.max - qty} ${Q.u}）`;
+  }
+  return { ok: true, e, qty, prev, why: '' };
+}
+const showSum = (prefix, r) => {
+  const prev = sheet.querySelector('#' + prefix + '-prev'), need = sheet.querySelector('#' + prefix + '-need'), ok = sheet.querySelector('#' + prefix + '-ok');
+  if (r.ok) {
+    prev.innerHTML = `<b>記下後：</b>${esc(r.prev)}${r.why ? `<span class="why">${esc(r.why)}</span>` : ''}`;
+    prev.hidden = false; need.textContent = '';
+  } else {
+    prev.hidden = true; need.textContent = r.need;
+  }
+  if (ok && !saving) ok.disabled = !r.ok;
+};
+function refresh(ctx) {
+  readForm(ctx);
+  const r = draftEval(ctx), d = ctx.d, q = id => sheet.querySelector('#' + id);
+  const sg = q('f-sugg');
+  if (sg) {
+    const v = q('f-item').value, t = v.trim();
+    if (sg.dataset.q !== v || !sg.dataset.ready) {
+      const s = suggestNames(ctx.type, v);
+      sg.dataset.q = v; sg.dataset.ready = '1';
+      sg.innerHTML = s.list.map(n => `<button class="qchip" type="button" data-act="pickname" data-v="${esc(n)}">${esc(n)}</button>`).join('');
+      q('f-sugg-h').textContent = s.label;
+      q('f-sugg-cell').hidden = !s.list.length;
+    }
+    q('f-item-hint').textContent = !t ? '' : OFFICIAL_SET.has(t) ? '官方正式名稱 ✓' : recentNames(ctx.type).includes(t) ? '' : '官方名稱裡找不到這個，還是可以照樣記。';
+  }
+  if (q('f-unit')) {
+    q('f-unit').textContent = d.cur === 'tb' ? '天幣' : '元';
+    const ch = q('f-chips');
+    if (ch && ch.dataset.cur !== d.cur) { ch.dataset.cur = d.cur; ch.innerHTML = chipsHTML(d.cur); }
+    const a = parseAmt(d.amt, d.cur);
+    const extra = ctx.type === 'isell' || ctx.type === 'sell' ? '每張價錢不一樣，就分開記。' : '';
+    q('f-amt-hint').textContent = (a ? `＝ ${moneyFull(a, d.cur)}。` : d.cur === 'tb' ? '直接填天幣，或按上面的 +10萬 這類按鈕累加。' : '單位是元（台幣）。') + extra;
+  }
+  showSum('f', r);
+  return r;
+}
+
+/* 小表單：收了一批、交貨、代購結算、轉帳 */
+const MINI = { obuy: 'b', odeliver: 'd', oend: 'x', settle: 's' };
+function miniEval(ctx) {
+  const g = id => sheet.querySelector('#' + id);
+  if (ctx.k === 'settle') {
+    const x = ctx.cands[ctx.sel], amt = parseAmt(g('s-amt').value, x.cur), pay = x.from === S.as;
+    g('s-hint').textContent = amt ? `＝ ${moneyFull(amt, x.cur)}` : '';
+    if (!amt) return { need: '還沒填：金額' };
+    const diff = x.amt - amt;
+    return {
+      ok: true, amt, x, full: diff === 0,
+      prev: (pay ? `你還 ${x.to} ${moneyFull(amt, x.cur)}` : `${x.from} 還你 ${moneyFull(amt, x.cur)}`) + (diff > 0 ? `，還差 ${moneyFull(diff, x.cur)}` : diff < 0 ? `，比要轉的多 ${moneyFull(-diff, x.cur)}` : '，這樣就結清了'),
+    };
+  }
+  const o = ctx.o, u = unitOf(o.item), agent = o.to[0], buyer = o.from;
+  const left = o.amt - spentOf(o), un = boughtOf(o) - deliveredOf(o);
+  if (ctx.k === 'obuy') {
+    const qty = parseInt(g('b-qty').value, 10), unit = parseAmt(g('b-unit').value, o.cur);
+    if (!(qty >= 1)) return { need: `還沒填：這批幾${u}` };
+    if (!unit) return { need: `還沒填：每${u}多少` };
+    const amt = qty * unit, after = left - amt;
+    return { ok: true, qty, unit, amt, prev: `這批 ${qty} ${u} × 每${u} ${money(unit, o.cur)} = ${moneyFull(amt, o.cur)}；` + (after >= 0 ? `代購金剩 ${moneyFull(after, o.cur)}` : `超過代購金 ${moneyFull(-after, o.cur)}，結算時 ${buyer} 要補`) };
+  }
+  if (ctx.k === 'odeliver') {
+    const k = parseInt(g('d-qty').value, 10);
+    if (!(k >= 1)) return { need: `還沒填：幾${u}` };
+    if (k > un) return { need: `最多 ${un} ${u}` };
+    return { ok: true, k, prev: un - k ? `還有 ${un - k} ${u} 沒交給 ${buyer}` : `收到的都交給 ${buyer} 了` };
+  }
+  const prev = left > 0 ? `${agent} 要退 ${buyer} ${moneyFull(left, o.cur)}，會算進帳本，結清時一起還`
+    : left < 0 ? `${buyer} 要補 ${agent} ${moneyFull(-left, o.cur)}，會算進帳本，結清時一起算`
+    : '剛好用完，不用退也不用補';
+  return { ok: true, left, prev, why: un > 0 ? `還有 ${un} ${u} 沒交給 ${buyer}，結算後還是可以記交貨。` : '' };
+}
+function miniRefresh(ctx) { const r = miniEval(ctx); showSum(MINI[ctx.k], r); return r; }
+
+/* ---------- 底部面板 ---------- */
+const $ = s => document.querySelector(s);
+const view = $('#view'), wrap = $('#sheetWrap'), sheet = $('#sheet');
+let SH = null, lastFocus = null, saving = false;
+
+function shell(ttl, body, o = {}) {
+  const { left = '取消', right = '', rightId = '', form = false, danger = false, enabled = false } = o;
+  const L = left ? `<button class="nb" type="button" data-act="close">${left}</button>` : '<span></span>';
+  const R = !right ? '<span></span>' : form
+    ? `<button class="nb r${danger ? ' danger' : ''}" type="submit" form="f"${rightId ? ` id="${rightId}"` : ''}${enabled ? '' : ' disabled'}>${right}</button>`
+    : `<button class="nb r" type="button" data-act="close">${right}</button>`;
+  return `<div class="grab" aria-hidden="true"></div><div class="sh-nav">${L}<h2 id="sheetTitle">${ttl}</h2>${R}</div><div class="sh-body">${body}</div>`;
+}
+const tail = p => `<div class="sum" id="${p}-prev" aria-live="polite" hidden></div><p class="need" id="${p}-need"></p>`;
+function sheetHTML(ctx) {
+  const me = S.as;
+  switch (ctx.k) {
+    case 'pick':
+      return shell('新增', MENU.map(([hd, rows]) => group(hd, rows.map(([t, l, s, icn, col]) => `<button class="cell tap ic-row" type="button" data-act="pick" data-type="${t}">${ico(icn, col)}<span class="main"><span class="t">${l}</span><span class="s">${s}</span></span>${CHEV}</button>`).join(''))).join(''));
+    case 'form': {
+      const L = LABELS[ctx.type];
+      return shell(ctx.item ? `${esc(ctx.item.name)}・${L.title}` : L.title, formHTML(ctx), { right: '記下', rightId: 'f-ok', form: true });
+    }
+    case 'calc': {
+      const y = ctx.with;
+      let b = '';
+      for (const c of ['tb', 'nt']) {
+        const ps = S.entries.filter(e => !e.voided && e.cur === c).map(e => ({ e, d: pairDelta(e, me, y) })).filter(x => x.d).sort((a, z) => (a.e.t < z.e.t ? 1 : -1));
+        if (!ps.length) continue;
+        const tot = ps.reduce((s, x) => s + x.d, 0);
+        b += group(CUR[c], ps.map(({ e, d }) => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${esc(title(e))}</span><span class="s">${esc(myView(e, me))}</span></span><span class="r ${cls(d)}">${signed(d, c)}</span>${CHEV}</button>`).join('') + `<div class="cell kv"><span class="k">合計</span><span class="v strong ${cls(tot)}">${signed(tot, c)}</span></div>`, '＋ 是對方要給你的，− 是你要給對方的，合計就是首頁的數字。');
+      }
+      return shell(`跟 ${esc(y)} 的明細`, b || '<p class="foot">目前沒有欠款。</p>', { left: '', right: '完成' });
+    }
+    case 'item': {
+      const i = ctx.item, u = unitOf(i.name), open = itemOpen(i), loot = i.kind === 'loot', ss = loot ? salesOf(i) : [];
+      let b = `<div class="dhead">${ico(loot ? 'gem' : 'bag', loot ? 'orange' : 'purple')}<div class="main"><p class="dt">${esc(i.name)}${i.qty > 1 ? ` ×${i.qty}` : ''}</p><p class="ds">${loot ? `打寶 · 有份：${esc(i.owners.join('、'))}` : `代墊收的 · 是 ${esc(i.owners[0])} 的`}</p></div></div>`;
+      const rows = [];
+      if (i.status === 'void') rows.push(kv('狀態', `已作廢：${i.voided ? i.voided.reason : ''}${i.voided ? `（${i.voided.by}）` : ''}`));
+      else rows.push(kv('狀態', open ? (loot ? (i.qty > 1 ? `還沒賣完，剩 ${leftOf(i)} ${u}` : '還沒賣') : `還沒交給 ${i.owners[0]}`) : (loot ? soldSummary(i) : `已交給 ${i.owners[0]}`)));
+      if (open) rows.push(kv('在誰身上', i.holder));
+      rows.push(kv('誰記的', i.seed ? `${i.by}（補記）` : `${i.by} · ${md(i.t)} ${hm(i.t)}`));
+      b += group('', rows.join(''));
+      if (ss.length) b += group('賣出紀錄', ss.map(e => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${e.kept ? `${esc(e.from)} 留著用` : '賣掉'} ${e.qty || 1} ${u}</span><span class="s">${e.kept ? '講好的價錢' : `錢在 ${esc(e.from)} 身上`}</span></span><span class="s">${money(e.amt, e.cur)}</span>${CHEV}</button>`).join(''));
+      const acts = [];
+      if (open && loot) acts.push(`<button class="cell tap act" type="button" data-act="sell" data-item="${i.id}">賣掉了</button>`, `<button class="cell tap act" type="button" data-act="keep" data-item="${i.id}">留著自己用</button>`);
+      if (open && !loot) acts.push(`<button class="cell tap act" type="button" data-act="hand" data-item="${i.id}">已交給 ${esc(i.owners[0])}</button>`);
+      if (acts.length) b += group('', acts.join(''), open && loot ? '留著自己用：有份的人想自己用，先講好價錢，就當作用這個價錢買下，錢分給其他有份的人。' : '');
+      if (canVoidItem(i)) b += group('', `<button class="cell tap danger" type="button" data-act="void" data-item="${i.id}">作廢這件物品</button>`);
+      return shell(esc(i.name), b, { left: '', right: '完成' });
+    }
+    case 'rec': {
+      const e = ctx.e, [icn, col] = TYPE_UI[e.type], mv = myView(e, me), eff = effect(e, true);
+      let b = `<div class="dhead">${ico(icn, col)}<div class="main"><p class="dt">${esc(title(e))}</p><p class="ds">${esc(typeLabel(e))}</p></div></div>`;
+      const rows = [];
+      rows.push(e.type === 'deliver' ? kv('數量', `${e.qty} ${unitOf(e.item)}`, 'strong') : kv(e.type === 'order' ? '代購金' : '金額', moneyFull(e.amt, e.cur), 'strong'));
+      if (mv) rows.push(kv('對你來說', mv));
+      else if (eff) rows.push(kv('內容', eff));
+      if (e.note) rows.push(kv('備註', e.note));
+      rows.push(kv('誰記的', e.seed ? `${e.by}（補記）` : `${e.by} · ${md(e.t)} ${hm(e.t)}`));
+      if (e.voided) rows.push(kv('狀態', `已作廢：${e.voided.reason}（${e.voided.by} · ${md(e.voided.t)} ${hm(e.voided.t)}）`));
+      b += group('', rows.join(''));
+      if (canVoidE(e)) b += group('', `<button class="cell tap danger" type="button" data-act="void" data-id="${e.id}">作廢這筆</button>`, '記錯了就作廢，作廢後不算數，但紀錄會留著，兩邊都看得到。');
+      else if (!e.voided && batchLocked(e)) b += '<p class="foot">已經結算了。要改這批，先作廢「代購結算」那筆。</p>';
+      else if (!e.voided && orderLocked(e)) b += '<p class="foot">已經有收貨或結算紀錄。要作廢代購金，先把那些紀錄作廢。</p>';
+      return shell(esc(typeLabel(e)), b, { left: '', right: '完成' });
+    }
+    case 'obuy': {
+      const o = ctx.o, u = unitOf(o.item), left = o.amt - spentOf(o), lu = lastUnit(o), unitTxt = o.cur === 'tb' ? '天幣' : '元';
+      const b = `<form id="f" novalidate>
+        <p class="foot tight">「${esc(o.item)}」：${esc(o.from)} 的代購金 ${moneyFull(o.amt, o.cur)}，${left >= 0 ? `還剩 ${moneyFull(left, o.cur)}` : `已經超過 ${moneyFull(-left, o.cur)}`}。每批價錢可以不一樣。</p>
+        ${group('', `<label class="cell field"><span class="k">這批幾${u}</span><input id="b-qty" type="text" inputmode="numeric" autocomplete="off" placeholder="0"><span class="sfx">${u}</span></label><label class="cell field"><span class="k">每${u}多少</span><input id="b-unit" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="${lu || ''}"><span class="sfx">${unitTxt}</span></label>`, lu ? '每張價錢先帶上一批的，價錢不同就改。' : '')}
+        ${group('', `<label class="cell sw"><span class="t">這批也已經交給 ${esc(o.from)} 了</span><input type="checkbox" class="switch" id="b-del"></label>`)}
+        ${tail('b')}</form>`;
+      return shell('收了一批', b, { right: '記下', rightId: 'b-ok', form: true });
+    }
+    case 'odeliver': {
+      const o = ctx.o, u = unitOf(o.item), un = boughtOf(o) - deliveredOf(o), agentView = isMe(o.to[0]);
+      const b = `<form id="f" novalidate>${group(`這次${agentView ? '交了' : '收到'}幾${u}`, `<label class="cell field"><span class="k">數量</span><input id="d-qty" type="text" inputmode="numeric" autocomplete="off" value="${un}"><span class="sfx">${u}</span></label>`, `還沒交 ${un} ${u}`)}${tail('d')}</form>`;
+      return shell(agentView ? '交貨' : '收到貨', b, { right: '記下', rightId: 'd-ok', form: true });
+    }
+    case 'oend': {
+      const o = ctx.o, u = unitOf(o.item);
+      const b = `<form id="f" novalidate>${group('', kv('給了', moneyFull(o.amt, o.cur)) + kv('收了', `${boughtOf(o)} ${u}`) + kv('花了', moneyFull(spentOf(o), o.cur)))}${tail('x')}</form>`;
+      return shell('收完了，結算', b, { right: '結算', rightId: 'x-ok', form: true });
+    }
+    case 'settle': {
+      const x = ctx.cands[ctx.sel], pay = x.from === me;
+      let b = '<form id="f" novalidate>';
+      if (ctx.cands.length > 1) b += group('', `<div class="cell">${seg('cand', ctx.cands.map((_, i) => String(i)), String(ctx.sel), i => { const c = ctx.cands[+i]; return `${c.from === me ? c.to : c.from}・${CUR[c.cur]}`; })}</div>`);
+      b += group(pay ? `你轉給 ${esc(x.to)} 多少？` : `${esc(x.from)} 轉給你多少？`, `<div class="cell amt-cell"><input id="s-amt" type="text" inputmode="decimal" autocomplete="off" value="${x.amt}" aria-label="金額"><span class="u">${x.cur === 'tb' ? '天幣' : '元'}</span></div>`, '<span id="s-hint"></span>');
+      b += tail('s') + '</form>';
+      return shell(pay ? '我轉了' : '我收到了', b, { right: '記下', rightId: 's-ok', form: true });
+    }
+    case 'hand': {
+      const i = ctx.item;
+      return shell('交貨', `<form id="f" novalidate><p class="lead">確定「${esc(i.name)}」已經交給 ${esc(i.owners[0])} 了？</p><p class="need" id="h-need"></p></form>`, { right: '確定', form: true, enabled: true });
+    }
+    case 'void': {
+      const sum = ctx.e ? `${title(ctx.e)}${ctx.e.type === 'deliver' ? '' : ` · ${moneyFull(ctx.e.amt, ctx.e.cur)}`}` : `打到「${ctx.item.name}」`;
+      return shell('作廢', `<form id="f" novalidate><p class="foot tight">${esc(sum)}</p>${group('', '<label class="cell field"><span class="k">原因</span><input id="v-reason" type="text" maxlength="40" autocomplete="off" placeholder="例：金額打錯"></label>', '作廢後不算數，但紀錄會留著，對方會看到「新作廢」。要改的話，作廢後再記一筆正確的。')}<p class="need" id="v-need"></p></form>`, { right: '作廢', rightId: 'v-ok', form: true, danger: true });
+    }
+    case 'order': {
+      // 代購明細：每一批收多少、交了多少、結算
+      const o = ctx.o, u = unitOf(o.item), agent = o.to[0], buyer = o.from;
+      const buys = ofType(o, 'obuy'), dels = ofType(o, 'deliver'), end = endOf(o);
+      const sp = spentOf(o), left = o.amt - sp, when = e => (e.seed ? '補記' : `${md(e.t)} ${hm(e.t)}`);
+      const row = (e, t, r) => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${t}</span><span class="s">${esc(when(e))} · ${esc(e.by)} 記的</span></span>${r ? `<span class="r">${r}</span>` : ''}${CHEV}</button>`;
+      let b = `<div class="dhead">${ico('cart', 'indigo')}<div class="main"><p class="dt">${esc(o.item)}</p><p class="ds">${esc(buyer)} 給 ${esc(agent)} 的代購金</p></div></div>`;
+      b += group('', kv('代購金', moneyFull(o.amt, o.cur), 'strong') + kv('已用', moneyFull(sp, o.cur)) + kv(left >= 0 ? '剩' : '超過', moneyFull(Math.abs(left), o.cur)) + kv('收了', `${boughtOf(o)} ${u}`) + kv('已交', `${deliveredOf(o)} ${u}`) + kv('狀態', end ? '已結算' : '還在收'));
+      b += group(`每一批（${buys.length}）`, buys.length ? buys.map(e => row(e, `${e.qty} ${u} × 每${u} ${money(e.unit, e.cur)}`, money(e.amt, e.cur))).join('') : '<div class="cell"><span class="s">還沒收到任何一批。</span></div>');
+      if (dels.length) b += group('交貨', dels.map(e => row(e, `交 ${e.qty} ${u}`, '')).join(''));
+      if (end) b += group('結算', row(end, esc(title(end)), money(end.amt, end.cur)));
+      b += group('', row(o, '代購金那一筆', ''), '點一筆可以看詳情或作廢。');
+      return shell(esc(o.item), b, { left: '', right: '完成' });
+    }
+    case 'me': {
+      const mine = myChars();
+      let b = mine.length > 1
+        ? group('現在用哪一隻記帳', mine.map((p, i) => `<label class="cell chk"><input type="radio" name="as" id="as-${i}" value="${esc(p)}"${p === S.as ? ' checked' : ''}><span class="t">${esc(p)}</span><span class="mark" aria-hidden="true">✓</span></label>`).join(''), '換了之後，首頁只算這一隻的錢，記帳時「誰記的」也寫這一隻。每一隻的錢分開算。')
+        : group('', `<div class="cell kv"><span class="k">你是</span><span class="v strong">${esc(S.me)}</span></div>`);
+      b += group('', '<button class="cell tap act" type="button" data-act="reload">重新整理帳本</button>', `這支手機用你的專屬網址登入，記的帳都會寫成你記的。${mine.length > 1 ? `${mine.map(esc).join('、')} 都用這個網址記。` : ''}網址不要給別人；外流了請說一聲，會換一組新的。`);
+      return shell('你的帳號', b, { left: '', right: '完成' });
+    }
+  }
+  return '';
+}
+function openSheet(ctx) {
+  if (wrap.hidden) lastFocus = document.activeElement;
+  SH = ctx;
+  sheet.innerHTML = sheetHTML(ctx);
+  wrap.hidden = false;
+  document.body.style.overflow = 'hidden';
+  if (ctx.k === 'form') refresh(ctx);
+  if (MINI[ctx.k]) miniRefresh(ctx);
+  sheet.focus({ preventScroll: true });
+}
+function closeSheet() {
+  wrap.hidden = true; sheet.innerHTML = ''; SH = null;
+  document.body.style.overflow = '';
+  if (lastFocus && document.contains(lastFocus)) lastFocus.focus({ preventScroll: true });
+}
+const openForm = type => openSheet({ k: 'form', type, d: newDraft(type) });
+
+// 存到後台：按鈕變「儲存中…」，成功就關掉表單並更新畫面，失敗就把原因寫在表單裡
+async function save(call, msg, tabAfter, undoList) {
+  if (saving) return;
+  saving = true;
+  const btn = sheet.querySelector('button[type="submit"]'), label = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '儲存中…'; }
+  try {
+    const data = await call();
+    applyData(data);
+    saving = false;
+    closeSheet();
+    if (tabAfter) S.tab = tabAfter;
+    render();
+    toast(msg, undoList && undoList.length ? { label: '復原', run: () => undo(undoList) } : null);
+  } catch (err) {
+    saving = false;
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+    const need = sheet.querySelector('.need');
+    if (need) need.textContent = '沒存到：' + err.message; else toast('沒存到：' + err.message);
+    load(true); // 背後順便抓最新的帳，關掉表單再看就是對的
+  }
+}
+// 用過的物品名稱（最近的在前面）：打寶類跟打寶類放一起，代購／代墊跟代購／代墊放一起
+function recentNames(type) {
+  const buyish = type === 'order' || type === 'buy', src = [];
+  for (const e of S.entries) if (!e.voided && e.item && (buyish ? e.type === 'order' || e.type === 'buy' : e.type === 'split')) src.push([e.t, e.item]);
+  for (const i of S.items) if (i.status !== 'void' && (buyish ? i.kind === 'buy' : i.kind === 'loot')) src.push([i.t, i.name]);
+  src.sort((a, b) => (a[0] < b[0] ? 1 : -1));
+  return [...new Set(src.map(x => x[1]))].slice(0, 8);
+}
+// 名稱提示：沒打字時列出最近用過的；有打字時先找用過的，再找官方百科（「31F」「31樓」都找得到「…(31樓)」）
+function suggestNames(type, v) {
+  const q = v.trim(), recent = recentNames(type);
+  if (!q) return { label: recent.length ? '最近用過' : '', list: recent };
+  const toks = q.replace(/(\d)\s*[fF樓]/g, '$1 ').match(/\d+|[^\d\s()（）,，、]+/g) || [];
+  const hit = n => toks.every(t => n.includes(t));
+  const out = [], seen = new Set([q]);
+  const push = n => { if (!seen.has(n)) { seen.add(n); out.push(n); } };
+  recent.filter(hit).forEach(push);
+  OFFICIAL.filter(n => n.startsWith(q)).forEach(push);
+  OFFICIAL.filter(hit).forEach(push);
+  return { label: out.length ? '點一下就填好（優先用官方正式名稱）' : '', list: out.slice(0, 8) };
+}
+// 剛記下的那幾筆，按「復原」時要作廢的順序：後記的先作廢；跟帳一起記的東西，後台會跟著作廢
+const undoOf = p => {
+  const es = p.entries || [], is = p.items || [];
+  return es.slice().reverse().map(e => ({ kind: 'e', id: e.id }))
+    .concat(is.filter(i => i.kind === 'loot' && !es.some(e => e.itemId === i.id)).map(i => ({ kind: 'i', id: i.id })));
+};
+async function undo(list) {
+  toast('復原中…');
+  try {
+    let d = null;
+    for (const x of list) d = await api('void', { kind: x.kind, id: x.id, reason: '剛記錯，按了復原' });
+    if (d) applyData(d);
+    render();
+    toast('已復原：剛剛那筆已作廢');
+  } catch (err) {
+    toast('沒復原成功：' + err.message);
+    load(true);
+  }
+}
+function submitForm(ctx) {
+  const r = refresh(ctx);
+  if (!r.ok) return;
+  const d = ctx.d, payload = { entries: [], items: [] };
+  let msg;
+  if (ctx.type === 'loot') {
+    payload.items.push({ id: idFor(ctx, 'i'), name: d.item, kind: 'loot', qty: r.qty, holder: d.from, owners: d.to.slice() });
+    msg = `記好了：「${d.item}」放進物品清單`;
+  } else {
+    const e = Object.assign({ id: idFor(ctx, 'e'), note: d.note }, r.e);
+    if (ctx.type === 'buy' && d.keep) {
+      const it = { id: idFor(ctx, 'i'), name: e.item, kind: 'buy', qty: 1, holder: e.from, owners: [e.to[0]] };
+      payload.items.push(it); e.itemId = it.id;
+    } else if (ctx.type === 'sell') {
+      const it = { id: idFor(ctx, 'i'), name: e.item, kind: 'loot', qty: r.qty, holder: e.from, owners: e.to.slice(), direct: true };
+      payload.items.push(it); e.itemId = it.id;
+    } else if (ctx.item) {
+      e.itemId = ctx.item.id;
+    }
+    payload.entries.push(e);
+    msg = `記好了：${title(e)}`;
+  }
+  save(() => api('add', payload), msg, ctx.type === 'loot' ? 'items' : null, undoOf(payload));
+}
+
+let toastTimer;
+// 底部的提示；action = { label, run } 時多一顆按鈕（例如「復原」），停久一點
+function toast(msg, action) {
+  const el = $('#toast');
+  el.textContent = '';
+  const span = document.createElement('span');
+  span.textContent = msg;
+  el.appendChild(span);
+  if (action) {
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'toast-btn'; btn.textContent = action.label;
+    btn.addEventListener('click', () => { clearTimeout(toastTimer); el.hidden = true; action.run(); });
+    el.appendChild(btn);
+  }
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, action ? 6000 : 2600);
+}
+
+function render() {
+  const t = S.tab, ready = S.loaded;
+  const av = $('#avatar'), fab = $('#fab');
+  av.hidden = !ready; fab.hidden = !ready; $('#tabbar').hidden = !ready;
+  if (ready) {
+    av.textContent = S.as.slice(0, 1);
+    av.setAttribute('aria-label', `你是 ${S.as}`);
+    fab.dataset.type = t === 'items' ? 'loot' : '';
+    fab.setAttribute('aria-label', t === 'items' ? '新增寶物' : '新增');
+  }
+  $('#ltText').textContent = t === 'ledger' ? '帳本' : t === 'items' ? '物品' : '紀錄';
+  for (const b of document.querySelectorAll('.tab')) b.setAttribute('aria-current', b.dataset.tab === t ? 'page' : 'false');
+  if (!KEY) { view.innerHTML = stateHTML('要用專屬網址打開', '這本帳只給自己人用。請用你的專屬網址打開；網址不見了，請跟建立帳本的人要一個。'); return; }
+  if (!ready) { view.innerHTML = S.error ? stateHTML('連不上帳本', S.error, true) : stateHTML('載入中…', '第一次打開要等幾秒。'); return; }
+  view.innerHTML = t === 'ledger' ? vLedger() : t === 'items' ? vItems() : vLog();
+}
+// 離開「紀錄」（換分頁、或切到別的 App）時，把現在記成「看過了」
+function leaveLog(leavingPage) {
+  if (S.tab !== 'log' || !S.loaded) return;
+  S.seen[S.me] = now();
+  if (leavingPage && navigator.sendBeacon) {
+    try { if (navigator.sendBeacon(API, JSON.stringify({ k: KEY, action: 'seen' }))) return; } catch (_) {}
+  }
+  api('seen').then(d => { S.seen[S.me] = d.seen || S.seen[S.me]; }).catch(() => {});
+}
+// 換分頁；dir = 'next'／'prev' 時（左右滑）帶一點滑動的動畫。點目前這頁就捲回最上面
+function goTab(tab, dir) {
+  if (tab === S.tab) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  if (tab !== 'log') leaveLog();
+  S.tab = tab;
+  render();
+  window.scrollTo(0, 0);
+  view.classList.remove('slide-l', 'slide-r');
+  if (dir) { void view.offsetWidth; view.classList.add(dir === 'next' ? 'slide-l' : 'slide-r'); }
+}
+
+/* ---------- 事件 ---------- */
+document.addEventListener('click', ev => {
+  const b = ev.target.closest('[data-act]');
+  if (!b) return;
+  const a = b.dataset.act;
+  if (a === 'tab') goTab(b.dataset.tab);
+  else if (a === 'reload') { if (SH) closeSheet(); S.error = ''; render(); load().then(good => { if (good) toast('帳本已更新'); }); }
+  else if (!S.loaded) return;
+  else if (a === 'new') { if (b.dataset.type) openForm(b.dataset.type); else openSheet({ k: 'pick' }); }
+  else if (a === 'pick') openForm(b.dataset.type);
+  else if (a === 'me') openSheet({ k: 'me' });
+  else if (a === 'close') { if (!saving) closeSheet(); }
+  else if (a === 'calc') openSheet({ k: 'calc', with: b.dataset.with });
+  else if (a === 'order') { const o = findE(b.dataset.id); if (o) openSheet({ k: 'order', o }); }
+  else if (a === 'pickname') {
+    const inp = sheet.querySelector('#f-item');
+    if (inp && SH && SH.k === 'form') { inp.value = b.dataset.v; inp.blur(); refresh(SH); }
+  }
+  else if (a === 'a2hs-ok') { try { localStorage.setItem(A2HS_KEY, '1'); } catch (_) {} render(); }
+  else if (a === 'item') { const it = findI(b.dataset.item); if (it) openSheet({ k: 'item', item: it }); }
+  else if (a === 'rec') { const e = findE(b.dataset.id); if (e) openSheet({ k: 'rec', e }); }
+  else if (a === 'void') openSheet(b.dataset.id ? { k: 'void', e: findE(b.dataset.id) } : { k: 'void', item: findI(b.dataset.item) });
+  else if (a === 'addamt') {
+    const inp = sheet.querySelector('#f-amt');
+    if (!inp || !SH || SH.k !== 'form') return;
+    const v = Number(b.dataset.v);
+    inp.value = v ? String((parseAmt(inp.value, SH.d.cur) || 0) + v) : '';
+    refresh(SH);
+  }
+  else if (a === 'sell') {
+    const it = findI(b.dataset.item);
+    openSheet({ k: 'form', type: 'isell', item: it, d: { from: it.holder, to: it.owners.slice(), cur: 'tb', amt: '', item: it.name, note: '', keep: false, qty: '1' } });
+  } else if (a === 'keep') {
+    const it = findI(b.dataset.item);
+    openSheet({ k: 'form', type: 'ikeep', item: it, d: { from: it.owners.find(p => p === S.as) || it.owners.find(isMe) || it.owners[0], to: it.owners.slice(), cur: 'tb', amt: '', item: it.name, note: '', keep: false, qty: '1' } });
+  } else if (a === 'hand') openSheet({ k: 'hand', item: findI(b.dataset.item) });
+  else if (a === 'o-buy') openSheet({ k: 'obuy', o: findE(b.dataset.id) });
+  else if (a === 'o-deliver') openSheet({ k: 'odeliver', o: findE(b.dataset.id) });
+  else if (a === 'o-end') openSheet({ k: 'oend', o: findE(b.dataset.id) });
+  else if (a === 'settle') {
+    const A = S.as, y = b.dataset.with, pay = b.dataset.dir === 'pay';
+    const cands = ['tb', 'nt'].map(c => ({ c, v: bal(A, y, c) })).filter(x => (pay ? x.v < 0 : x.v > 0))
+      .map(x => (pay ? { from: A, to: y, amt: -x.v, cur: x.c } : { from: y, to: A, amt: x.v, cur: x.c }));
+    if (cands.length) openSheet({ k: 'settle', cands, sel: 0 });
+  }
+});
+// 點進已經有數字的欄位時，整個選起來，直接打就會取代，不會接在後面
+sheet.addEventListener('focusin', ev => {
+  const t = ev.target;
+  if (t.matches && t.matches('input[inputmode]') && t.value) setTimeout(() => { try { t.select(); } catch (_) {} }, 0);
+});
+sheet.addEventListener('input', () => {
+  if (!SH || saving) return;
+  if (SH.k === 'form') refresh(SH);
+  else if (MINI[SH.k]) miniRefresh(SH);
+  else if (SH.k === 'void') sheet.querySelector('#v-ok').disabled = !sheet.querySelector('#v-reason').value.trim();
+});
+sheet.addEventListener('change', ev => {
+  if (!SH || saving) return;
+  const tg = ev.target;
+  if (SH.k === 'form') {
+    // 兩邊選成同一隻角色時，就自動把另一邊換成對方
+    const L = LABELS[SH.type];
+    if (L.to && !L.multi && (tg.name === 'from' || tg.name === 'to')) {
+      const f = sheet.querySelector('input[name="from"]:checked'), to = sheet.querySelector('input[name="to"]:checked');
+      if (f && to && f.value === to.value) {
+        const other = M.find(p => who(p) !== who(tg.value)) || NAMES.find(p => p !== tg.value), side = tg.name === 'from' ? 'to' : 'from';
+        const el = [...sheet.querySelectorAll(`input[name="${side}"]`)].find(x => x.value === other);
+        if (el) el.checked = true;
+      }
+    }
+    refresh(SH);
+  } else if (SH.k === 'settle' && tg.name === 'cand') {
+    SH.sel = Number(tg.value); SH.ids = null; openSheet(SH);
+  } else if (SH.k === 'me' && tg.name === 'as') {
+    setAs(tg.value); closeSheet(); render(); toast(`現在用 ${S.as} 記帳`);
+  }
+});
+sheet.addEventListener('submit', ev => {
+  ev.preventDefault();
+  if (!SH || saving) return;
+  if (SH.k === 'form') { submitForm(SH); return; }
+  if (MINI[SH.k]) {
+    const r = miniRefresh(SH);
+    if (!r.ok) return;
+    if (SH.k === 'settle') {
+      const e = { id: idFor(SH, 'e'), type: 'repay', from: r.x.from, to: [r.x.to], amt: r.amt, cur: r.x.cur, item: '', note: r.full ? '結清' : '', settle: true };
+      save(() => api('add', { entries: [e] }), `記好了：${title(e)} ${moneyFull(e.amt, e.cur)}`, null, undoOf({ entries: [e] }));
+      return;
+    }
+    const o = SH.o, u = unitOf(o.item), agent = o.to[0], buyer = o.from;
+    const common = { orderId: o.id, item: o.item, cur: o.cur, note: '' };
+    if (SH.k === 'obuy') {
+      const list = [Object.assign({ id: idFor(SH, 'e'), type: 'obuy', from: agent, to: [buyer], qty: r.qty, unit: r.unit, amt: r.amt }, common)];
+      if (sheet.querySelector('#b-del').checked) list.push(Object.assign({ id: idFor(SH, 'd'), type: 'deliver', from: agent, to: [buyer], qty: r.qty, amt: 0 }, common));
+      save(() => api('add', { entries: list }), `記好了：收了 ${r.qty} ${u}，花 ${moneyFull(r.amt, o.cur)}`, null, undoOf({ entries: list }));
+    } else if (SH.k === 'odeliver') {
+      const de = Object.assign({ id: idFor(SH, 'e'), type: 'deliver', from: agent, to: [buyer], qty: r.k, amt: 0 }, common);
+      save(() => api('add', { entries: [de] }), `記好了：${agent} 交給 ${buyer}「${o.item}」${r.k} ${u}`, null, undoOf({ entries: [de] }));
+    } else {
+      const left = r.left;
+      const oe = Object.assign({ id: idFor(SH, 'e'), type: 'oend', from: left >= 0 ? buyer : agent, to: [left >= 0 ? agent : buyer], amt: Math.abs(left), refund: left >= 0 }, common);
+      save(() => api('add', { entries: [oe] }),
+        left > 0 ? `記好了：${agent} 要退 ${buyer} ${moneyFull(left, o.cur)}` : left < 0 ? `記好了：${buyer} 要補 ${agent} ${moneyFull(-left, o.cur)}` : '記好了：剛好用完', null, undoOf({ entries: [oe] }));
+    }
+  } else if (SH.k === 'hand') {
+    const i = SH.item;
+    save(() => api('hand', { id: i.id }), `記好了：「${i.name}」交給 ${i.owners[0]}`);
+  } else if (SH.k === 'void') {
+    const reason = sheet.querySelector('#v-reason').value.trim();
+    if (!reason) return;
+    save(() => api('void', SH.e ? { kind: 'e', id: SH.e.id, reason } : { kind: 'i', id: SH.item.id, reason }), '已作廢，紀錄還留著');
+  }
+});
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && !wrap.hidden && !saving) closeSheet(); });
+// 面板往下滑就關掉（跟 iPhone 一樣）：從上方橫槓、標題列拉，或內容已經捲到最上面時往下拉
+(() => {
+  const scrim = wrap.querySelector('.scrim');
+  let armed = false, dragging = false, startY = 0, startT = 0, dy = 0;
+  const reset = () => { sheet.style.transition = ''; sheet.style.transform = ''; scrim.style.transition = ''; scrim.style.opacity = ''; };
+  sheet.addEventListener('touchstart', ev => {
+    armed = false;
+    if (saving || ev.touches.length !== 1) return;
+    const t = ev.target, b = sheet.querySelector('.sh-body');
+    armed = !!t.closest('.grab, .sh-nav') || (!!b && b.contains(t) && b.scrollTop <= 0);
+    if (!armed) return;
+    startY = ev.touches[0].clientY; startT = Date.now(); dy = 0; dragging = false;
+  }, { passive: true });
+  sheet.addEventListener('touchmove', ev => {
+    if (!armed) return;
+    const d = ev.touches[0].clientY - startY;
+    if (!dragging) {
+      if (d < -4) { armed = false; return; } // 往上滑：照常捲動內容
+      if (d < 8) return;
+      dragging = true;
+      sheet.style.transition = 'none'; scrim.style.transition = 'none';
+    }
+    dy = Math.max(0, d);
+    sheet.style.transform = `translateY(${dy}px)`;
+    scrim.style.opacity = String(Math.max(0, 1 - dy / sheet.offsetHeight));
+    ev.preventDefault();
+  }, { passive: false });
+  const end = () => {
+    if (!armed) return;
+    armed = false;
+    if (!dragging) return;
+    dragging = false;
+    const h = sheet.offsetHeight, fast = dy > 40 && dy / Math.max(1, Date.now() - startT) > 0.6;
+    sheet.style.transition = 'transform .2s ease'; scrim.style.transition = 'opacity .2s ease';
+    if (!saving && (dy > Math.min(140, h * 0.3) || fast)) {
+      sheet.style.transform = `translateY(${h}px)`; scrim.style.opacity = '0';
+      setTimeout(() => { reset(); closeSheet(); }, 190);
+    } else {
+      sheet.style.transform = ''; scrim.style.opacity = '';
+      setTimeout(reset, 210);
+    }
+  };
+  sheet.addEventListener('touchend', end);
+  sheet.addEventListener('touchcancel', end);
+})();
+// 回到這個網頁、或每分鐘一次，抓對方新記的帳（有表單打開時先不動）
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') leaveLog(true);
+  else if (wrap.hidden) load(true);
+});
+setInterval(() => { if (document.visibilityState === 'visible' && wrap.hidden && S.loaded) load(true); }, 60000);
+
+// 左右滑換分頁（沒開面板時）：往左滑到下一頁、往右滑回上一頁；螢幕最邊邊留給瀏覽器的「上一頁」手勢
+(() => {
+  let sx = 0, sy = 0, st = 0, on = false;
+  document.addEventListener('touchstart', ev => {
+    on = false;
+    if (!wrap.hidden || !S.loaded || ev.touches.length !== 1) return;
+    const t = ev.touches[0];
+    if (t.clientX < 24 || t.clientX > window.innerWidth - 24) return;
+    sx = t.clientX; sy = t.clientY; st = Date.now(); on = true;
+  }, { passive: true });
+  document.addEventListener('touchend', ev => {
+    if (!on) return;
+    on = false;
+    const t = ev.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 2 || Date.now() - st > 800) return;
+    const i = TABS.indexOf(S.tab) + (dx < 0 ? 1 : -1);
+    if (i >= 0 && i < TABS.length) goTab(TABS[i], dx < 0 ? 'next' : 'prev');
+  }, { passive: true });
+})();
+// 從主畫面打開時沒有瀏覽器的重新整理：在最上面往下拉就更新（在瀏覽器裡就用瀏覽器自己的下拉重新整理）
+(() => {
+  if (!STANDALONE) return;
+  const ptr = $('#ptr');
+  let sx = 0, sy = 0, dist = 0, on = false;
+  document.addEventListener('touchstart', ev => {
+    on = wrap.hidden && S.loaded && window.scrollY <= 0 && ev.touches.length === 1;
+    if (on) { sx = ev.touches[0].clientX; sy = ev.touches[0].clientY; dist = 0; }
+  }, { passive: true });
+  document.addEventListener('touchmove', ev => {
+    if (!on) return;
+    const t = ev.touches[0];
+    dist = t.clientY - sy;
+    if (Math.abs(t.clientX - sx) > Math.abs(dist)) { on = false; ptr.hidden = true; return; }
+    if (dist < 12) { ptr.hidden = true; return; }
+    ptr.hidden = false;
+    ptr.textContent = dist > 80 ? '放開就更新' : '往下拉更新';
+    ptr.style.opacity = String(Math.min(1, dist / 80));
+  }, { passive: true });
+  document.addEventListener('touchend', () => {
+    if (!on) return;
+    on = false;
+    if (dist > 80) {
+      ptr.textContent = '更新中…'; ptr.style.opacity = '1';
+      load().then(good => { ptr.hidden = true; if (good) toast('帳本已更新'); });
+    } else ptr.hidden = true;
+  }, { passive: true });
+})();
+
+initKey();
+render();
+load();
+})();
+</script>
+</body>
+</html>
