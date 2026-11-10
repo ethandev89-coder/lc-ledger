@@ -487,6 +487,7 @@ function soldSummary(i) {
 const orderLocked = e => e.type === 'order' && (ofType(e, 'obuy').length || ofType(e, 'deliver').length || endOf(e));
 const batchLocked = e => { const o = e.type === 'obuy' && findE(e.orderId); return !!(o && endOf(o)); };
 const canVoidE = e => !e.voided && !e.voidReq && !isPending(e) && !orderLocked(e) && !batchLocked(e) && (isMe(e.by) || isMe(e.from) || e.to.some(isMe));
+const mineItem = i => isMe(i.by) || isMe(i.holder) || i.owners.some(isMe);
 const canVoidItem = i => i.kind === 'loot' && i.status !== 'void' && salesOf(i).length === 0 && (isMe(i.by) || isMe(i.holder) || i.owners.some(isMe));
 
 /* ---------- 新紀錄：對方在你上次看紀錄之後新增或作廢的 ---------- */
@@ -651,7 +652,7 @@ function vLedger() {
   const pay = rows.reduce((s, r) => s + (r.tb < 0 ? -r.tb : 0), 0), recv = rows.reduce((s, r) => s + (r.tb > 0 ? r.tb : 0), 0), net = recv - pay;
   const ntNet = rows.reduce((s, r) => s + r.nt, 0);
   const orders = S.entries.filter(e => orderShown(e) && (e.from === A || e.to[0] === A));
-  const openItems = S.items.filter(itemOpen).length;
+  const openItems = S.items.filter(i => itemOpen(i) && mineItem(i)).length;
   const nc = newCounts(S.me);
   let h = a2hsTip();
   // 同一個網址有好幾隻角色：最上面寫現在用哪一隻，點一下就能換
@@ -724,6 +725,7 @@ function itemCell(i) {
   let sub;
   if (loot) sub = open ? `在 ${i.holder} 身上 · ${i.qty > 1 ? `剩 ${leftOf(i)} ${u}` : '還沒賣'}` : soldSummary(i);
   else sub = open ? `在 ${i.holder} 身上 · 要交給 ${i.owners[0]}` : `已交給 ${i.owners[0]}`;
+  if (!mineItem(i)) sub += ' · 你沒有份';
   return `<button class="cell tap ic-row" type="button" data-act="item" data-item="${i.id}">${ico(loot ? 'gem' : 'bag', loot ? 'orange' : 'purple')}<span class="main"><span class="t">${esc(i.name)}${i.qty > 1 ? ` <span class="q">×${i.qty}</span>` : ''}</span><span class="s">${esc(sub)}</span></span>${CHEV}</button>`;
 }
 
@@ -1007,8 +1009,8 @@ function sheetHTML(ctx) {
       const mvs = S.entries.filter(e => e.itemId === i.id && e.type === 'move' && !e.voided);
       if (mvs.length) b += group('轉手紀錄', mvs.map(e => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${esc(e.from)} → ${esc(e.to[0])}</span><span class="s">${md(e.t)} ${hm(e.t)} · ${esc(e.by)} 記的</span></span>${CHEV}</button>`).join(''));
       const acts = [];
-      if (open && loot) acts.push(`<button class="cell tap act" type="button" data-act="sell" data-item="${i.id}">賣掉了</button>`, `<button class="cell tap act" type="button" data-act="keep" data-item="${i.id}">留著自己用</button>`, `<button class="cell tap act" type="button" data-act="move" data-item="${i.id}">轉給別人</button>`);
-      if (open && !loot) acts.push(`<button class="cell tap act" type="button" data-act="hand" data-item="${i.id}">已交給 ${esc(i.owners[0])}</button>`);
+      if (open && loot && mineItem(i)) acts.push(`<button class="cell tap act" type="button" data-act="sell" data-item="${i.id}">賣掉了</button>`, `<button class="cell tap act" type="button" data-act="keep" data-item="${i.id}">留著自己用</button>`, `<button class="cell tap act" type="button" data-act="move" data-item="${i.id}">轉給別人</button>`);
+      if (open && !loot && mineItem(i)) acts.push(`<button class="cell tap act" type="button" data-act="hand" data-item="${i.id}">已交給 ${esc(i.owners[0])}</button>`);
       if (acts.length) b += group('', acts.join(''), open && loot ? '留著自己用：有份的人想自己用，先講好價錢，就當作用這個價錢買下，錢分給其他有份的人。轉給別人：換成別人拿著，之後由對方賣，不會動到錢。' : '');
       if (canVoidItem(i)) b += group('', `<button class="cell tap danger" type="button" data-act="void" data-item="${i.id}">作廢這件物品</button>`);
       return shell(esc(i.name), b, { left: '', right: '完成' });
