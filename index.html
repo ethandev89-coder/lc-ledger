@@ -625,11 +625,9 @@ const TYPE_UI = { loan: ['up', 'blue'], repay: ['down', 'green'], buy: ['bag', '
 const group = (head, body, foot) => `<div class="grp">${head ? `<div class="grp-h">${head}</div>` : ''}<div class="grp-b">${body}</div>${foot ? `<div class="grp-f">${foot}</div>` : ''}</div>`;
 const kv = (k, v, vc = '') => `<div class="cell kv"><span class="k">${esc(k)}</span><span class="v ${vc}">${esc(v)}</span></div>`;
 const seg = (name, list, sel, lab = x => x) => `<div class="segc" role="radiogroup">${list.map((p, i) => `<label><input type="radio" name="${name}" id="${name}-${i}" value="${esc(p)}"${p === sel ? ' checked' : ''}><span>${esc(lab(p))}</span></label>`).join('')}</div>`;
-// 名字後面的小註記：（你）、（你的角色）、（某某的角色）
-const tagOf = p => p === S.as ? '（你）' : isMe(p) ? '（你的角色）' : who(p) === p ? '' : `（${esc(who(p))}的角色）`;
+// 名字後面的小註記：（你）、（你的角色）；別人的角色關係不顯示
+const tagOf = p => p === S.as ? '（你）' : isMe(p) ? '（你的角色）' : '';
 const checks = (name, list, sel) => list.map((p, i) => `<label class="cell chk"><input type="checkbox" name="${name}" id="${name}-${i}" value="${esc(p)}"${sel.includes(p) ? ' checked' : ''}><span class="t">${esc(p)}${tagOf(p)}</span><span class="mark" aria-hidden="true">✓</span></label>`).join('');
-// 「誰有份」下面的說明：同一個人的兩隻角色，錢分開算
-const aliasNote = () => Object.keys(AL).filter(a => M.includes(AL[a])).map(a => `${esc(a)} 是 ${esc(AL[a])} 的另一隻角色，錢分開算；兩隻都有份就兩隻都勾。`).join('');
 const CHIPS = { tb: [[10000, '+1萬'], [100000, '+10萬'], [1000000, '+100萬'], [10000000, '+1000萬']], nt: [[100, '+100'], [1000, '+1000'], [10000, '+1萬']] };
 const chipsHTML = cur => CHIPS[cur].map(([v, l]) => `<button class="qchip" type="button" data-act="addamt" data-v="${v}">${l}</button>`).join('') + '<button class="qchip" type="button" data-act="addamt" data-v="0">清除</button>';
 const stateHTML = (t, s, retry) => group('', `<div class="cell"><span class="main"><span class="t">${esc(t)}</span><span class="s">${esc(s)}</span></span></div>${retry ? '<button class="cell tap act" type="button" data-act="reload">再試一次</button>' : ''}`);
@@ -817,7 +815,7 @@ function formHTML(ctx) {
     h += group('', `<div class="cell pick"><span class="k">${L.from}</span>${seg('from', fromList, d.from)}</div><div class="cell pick"><span class="k">${L.to}</span>${seg('to', NAMES, d.to[0] || '')}</div>`);
   } else {
     h += group(L.from, `<div class="cell">${seg('from', fromList, d.from)}</div>`);
-    if (L.to) h += group(L.to, checks('to', NAMES, d.to), aliasNote());
+    if (L.to) h += group(L.to, checks('to', NAMES, d.to));
   }
   if (Q.show) h += group('', `<label class="cell field"><span class="k">${Q.label}</span><input id="f-qty" type="text" inputmode="numeric" autocomplete="off" placeholder="0" value="${esc(d.qty)}"><span class="sfx">${Q.u}</span></label>`, Q.max < 999 ? `還剩 ${Q.max} ${Q.u}` : '');
   if (!L.noMoney) {
