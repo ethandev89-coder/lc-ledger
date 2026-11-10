@@ -6,10 +6,10 @@
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="帳本">
+<meta name="apple-mobile-web-app-title" content="銷贓銀行">
 <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
-<title>帳本</title>
+<title>銷贓銀行</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23007AFF'/%3E%3Cpath d='M20 14h20a6 6 0 0 1 6 6v30H24a6 6 0 0 1-6-6V16' fill='none' stroke='white' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M18 44a6 6 0 0 1 6-6h22' fill='none' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -285,7 +285,7 @@ button.cell { border: 0; background: none; text-align: left; cursor: pointer; }
 <body>
 <div class="app">
   <header class="lhead">
-    <h1 class="ltitle" id="ltText">帳本</h1>
+    <h1 class="ltitle" id="ltText">銷贓銀行</h1>
     <button class="avatar" id="avatar" type="button" data-act="me" aria-haspopup="dialog" hidden></button>
   </header>
   <main id="view"></main>
@@ -641,7 +641,7 @@ function a2hsTip() {
   const how = / Line\//i.test(UA) ? '你現在是在 LINE 裡面打開的，先從 LINE 的選單改用 Safari（Android 用 Chrome）開啟，再加到主畫面。'
     : IS_IOS ? '按 Safari 的「分享」（找不到就先按「⋯」）→「加入主畫面」。'
     : '按 Chrome 右上角的「⋮」→「加到主畫面」。';
-  return `<div class="tip" role="note">${ico('plus', 'blue')}<div class="main"><span class="t">把帳本加到主畫面</span><span class="s">${how}以後點桌面上的「帳」就能直接打開，也一直認得是你。</span><div class="row"><button class="btn btn-tint btn-sm" type="button" data-act="a2hs-ok">知道了</button></div></div></div>`;
+  return `<div class="tip" role="note">${ico('plus', 'blue')}<div class="main"><span class="t">把帳本加到主畫面</span><span class="s">${how}以後點桌面上的「銷贓銀行」就能直接打開，也一直認得是你。</span><div class="row"><button class="btn btn-tint btn-sm" type="button" data-act="a2hs-ok">知道了</button></div></div></div>`;
 }
 
 /* ---------- 畫面：帳本 ---------- */
@@ -1257,7 +1257,7 @@ function render() {
     fab.dataset.type = t === 'items' ? 'loot' : '';
     fab.setAttribute('aria-label', t === 'items' ? '新增寶物' : '新增');
   }
-  $('#ltText').textContent = t === 'ledger' ? '帳本' : t === 'items' ? '物品' : '紀錄';
+  $('#ltText').textContent = t === 'ledger' ? '銷贓銀行' : t === 'items' ? '物品' : '紀錄';
   for (const b of document.querySelectorAll('.tab')) b.setAttribute('aria-current', b.dataset.tab === t ? 'page' : 'false');
   if (!KEY) { view.innerHTML = stateHTML('要用專屬網址打開', '這本帳只給自己人用。請用你的專屬網址打開；網址不見了，請跟建立帳本的人要一個。'); return; }
   if (!ready) { view.innerHTML = S.error ? stateHTML('連不上帳本', S.error, true) : stateHTML('載入中…', '第一次打開要等幾秒。'); return; }
