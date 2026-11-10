@@ -1466,8 +1466,8 @@ setInterval(() => { if (document.visibilityState === 'visible' && wrap.hidden &&
 
 // 左右滑換分頁（沒開面板時）：畫面跟著手指走，旁邊那一頁同時跟進來；放開後照手速滑到位，拖不夠就彈回去。螢幕最邊邊留給瀏覽器的「上一頁」手勢
 (() => {
-  const page = $('#page'), EDGE = 24, SLOP = 8, RUBBER = .3, EASE = 'cubic-bezier(.2, .75, .25, 1)';
-  let touch = null, ghost = null, ghostTab = '', ghostX = 0, shownX = 0, frame = 0, width = 0, settling = false;
+  const page = $('#page'), EDGE = 24, SLOP = 8, RUBBER = .3, STIFF = 12;
+  let touch = null, ghost = null, ghostTab = '', ghostX = 0, shownX = 0, frame = 0, width = 0, settling = false, anims = [], endNow = null, nearAt = 0;
   const mark = tab => { for (const b of document.querySelectorAll('.tab')) b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'); };
   function paint() {
     frame = 0;
@@ -1497,33 +1497,44 @@ setInterval(() => { if (document.visibilityState === 'visible' && wrap.hidden &&
   function finish(tab) {
     settling = false; swiping = false;
     document.body.classList.remove('swiping');
-    page.style.transition = page.style.transform = page.style.willChange = '';
+    for (const a of anims) a.cancel();
+    anims = []; endNow = null;
+    page.style.transform = page.style.willChange = '';
     shownX = 0;
     if (tab) goTab(tab);
     else { mark(S.tab); if (swipeDirty) render(); }
     swipeDirty = false;
     dropGhost();
   }
-  // 放開後滑到位：手速快就快一點，慢慢放就用固定的時間
+  // 放開後定位：接著手指的速度，像彈簧一樣慢慢停下來（不會突然加速，也不會衝過頭）
   function settle(tab, toX, v) {
     settling = true;
     mark(tab || S.tab);
-    const dist = Math.abs(toX - shownX);
-    if (dist < 1 || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) { finish(tab); return; }
-    const ms = Math.round(Math.min(300, Math.max(150, dist / Math.max(Math.abs(v), dist / 280))));
-    const tr = `transform ${ms}ms ${EASE}`;
-    page.style.transition = tr;
-    if (ghost) ghost.style.transition = tr;
+    const A = shownX - toX;
+    if (Math.abs(A) < 1 || !page.animate || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) { finish(tab); return; }
+    const w = STIFF, limit = Math.abs(A) * w * .98;
+    let v0 = v * 1000; // 像素／秒
+    if (v0 * A < 0 && Math.abs(v0) > limit) v0 = Math.sign(v0) * limit; // 朝定位點的速度太快會衝過頭，壓到剛好不會超過
+    const at = t => (A + (v0 + w * A) * t) * Math.exp(-w * t); // 離定位點還有多遠
+    const STEP = 1 / 60, xs = [];
+    let t = 0, near = 0;
+    do { xs.push(at(t)); if (!near && Math.abs(at(t)) < 14) near = t; t += STEP; } while (t < 1.2 && (t < .1 || Math.abs(at(t)) > .6));
+    xs.push(0);
+    const ms = (xs.length - 1) * STEP * 1000, opt = { duration: ms, easing: 'linear' };
+    const frames = off => xs.map(x => ({ transform: `translate3d(${(toX + x + off).toFixed(2)}px,0,0)` }));
+    anims = [page.animate(frames(0), opt)];
+    if (ghost) anims.push(ghost.animate(frames(ghostX), opt));
     shownX = toX;
     paint();
+    nearAt = performance.now() + (near || t) * 1000;
     let done = false;
-    const end = () => { if (done) return; done = true; page.removeEventListener('transitionend', onEnd); finish(tab); };
-    const onEnd = ev => { if (ev.target === page) end(); };
-    page.addEventListener('transitionend', onEnd);
-    setTimeout(end, ms + 80);
+    endNow = () => { if (done) return; done = true; finish(tab); };
+    anims[0].onfinish = endNow;
+    setTimeout(endNow, ms + 120);
   }
   document.addEventListener('touchstart', ev => {
     touch = null;
+    if (settling && endNow && performance.now() >= nearAt) endNow(); // 快停好了就不用等，直接接下一次
     if (settling || !wrap.hidden || !S.loaded || ev.touches.length !== 1) return;
     const t = ev.touches[0];
     if (t.clientX < EDGE || t.clientX > window.innerWidth - EDGE) return;
