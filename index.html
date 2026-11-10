@@ -272,6 +272,14 @@ button.cell { border: 0; background: none; text-align: left; cursor: pointer; }
   .slide-l { animation: slideL .22s ease-out; }
   .slide-r { animation: slideR .22s ease-out; }
 }
+.cnt { flex: none; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 11px; background: var(--c-red); color: #fff; font-size: 13px; font-weight: 700; line-height: 22px; text-align: center; }
+.pcard .row { margin-top: 8px; }
+.pcard .row .btn { flex: 1; }
+.btn-no { background: var(--fill); color: var(--red-t); }
+.pcard .ohead .r { flex: none; font-size: 17px; font-weight: 600; color: var(--label-2); }
+.t b { font-weight: 600; }
+.ps b { white-space: nowrap; }
+.pw { display: block; margin-top: 2px; color: var(--orange-t); }
 </style>
 </head>
 <body>
@@ -357,7 +365,7 @@ async function api(action, body) {
   return data;
 }
 function applyData(d) {
-  S.me = d.me; M = d.members; S.seen = { [d.me]: d.seen || '' };
+  S.me = d.me; M = d.members; S.seen = { [d.me]: d.seen || '' }; S.admin = !!d.admin;
   AL = d.alias && typeof d.alias === 'object' ? d.alias : {};
   NAMES = M.flatMap(p => [p, ...Object.keys(AL).filter(a => AL[a] === p)]);
   let as = S.as;
@@ -437,11 +445,13 @@ function shares(e) {
   return m;
 }
 // 一筆帳讓誰欠誰：[債主, 欠錢的那隻, 金額]，每一隻角色分開算。代購金在「結算」之前不算進來
-function flows(e) {
+function rawFlows(e) {
   if (e.type === 'order' || e.type === 'obuy' || e.type === 'deliver' || e.type === 'move') return [];
   if (e.type === 'split') return [...shares(e)].filter(([p, v]) => p !== e.from && v).map(([p, v]) => [p, e.from, v]);
   return e.amt ? [[e.from, e.to[0], e.amt]] : [];
 }
+// 新記的帳還在等人同意時不算錢；別人申請作廢的，同意作廢之前照算
+const flows = e => (e.wait && e.wait.length && !e.voidReq ? [] : rawFlows(e));
 // 這筆讓「b 欠 a」多了多少（負數 = a 欠 b 多了）
 function pairDelta(e, a, b) {
   let s = 0;
@@ -475,7 +485,7 @@ function soldSummary(i) {
 }
 const orderLocked = e => e.type === 'order' && (ofType(e, 'obuy').length || ofType(e, 'deliver').length || endOf(e));
 const batchLocked = e => { const o = e.type === 'obuy' && findE(e.orderId); return !!(o && endOf(o)); };
-const canVoidE = e => !e.voided && !orderLocked(e) && !batchLocked(e) && (isMe(e.by) || isMe(e.from) || e.to.some(isMe));
+const canVoidE = e => !e.voided && !e.voidReq && !isPending(e) && !orderLocked(e) && !batchLocked(e) && (isMe(e.by) || isMe(e.from) || e.to.some(isMe));
 const canVoidItem = i => i.kind === 'loot' && i.status !== 'void' && salesOf(i).length === 0 && (isMe(i.by) || isMe(i.holder) || i.owners.some(isMe));
 
 /* ---------- 新紀錄：對方在你上次看紀錄之後新增或作廢的 ---------- */
@@ -490,7 +500,9 @@ function events() {
 function newFlags(x, me) {
   if (x.k === 'hand') return { add: false, vd: false };
   const o = x.k === 'e' ? x.e : x.i, seen = S.seen[me] || '';
-  return { add: who(o.by) !== me && o.t > seen, vd: !!(o.voided && who(o.voided.by) !== me && o.voided.t > seen) };
+  // 等你同意的另外有提示；你已經同意或不同意過的，也不用再標「新」
+  const wm = x.k === 'e' && (waitingMe(o) || (o.log || []).some(l => who(l.by) === me) || (o.voided && who(o.voided.by) === me));
+  return { add: !wm && who(o.by) !== me && o.t > seen, vd: !wm && !!(o.voided && who(o.voided.by) !== me && o.voided.t > seen) };
 }
 function newCounts(me) {
   let a = 0, v = 0;
@@ -501,6 +513,29 @@ function newCounts(me) {
     if (f.vd) { v++; by.add(o.voided.by); }
   }
   return { a, v, by: NAMES.filter(p => by.has(p)) };
+}
+
+/* ---------- 同意：會讓別人要多給或少收的帳，要那個人同意才算 ---------- */
+const waitOf = e => e.wait || [];
+const isPending = e => !e.voided && waitOf(e).length > 0 && !e.voidReq;
+const waitingMe = e => !e.voided && waitOf(e).some(isMe);
+const waitingOthers = e => !e.voided && waitOf(e).length > 0 && !waitOf(e).some(isMe) && isMe(e.voidReq ? e.voidReq.by : e.by);
+const needAgree = e => (S.admin ? [] : [...new Set(rawFlows(e).filter(([c, d]) => !isMe(d) && who(c) !== who(d)).map(([, d]) => d))]);
+const needAgreeVoid = e => (S.admin ? [] : [...new Set(rawFlows(e).filter(([c, d]) => !isMe(c) && who(c) !== who(d)).map(([c]) => c))]);
+// 轉了還沒同意的錢：a 轉給 b、等 b 同意的金額
+const pendRepay = (a, b, cur) => S.entries.filter(e => isPending(e) && e.type === 'repay' && e.from === a && e.to[0] === b && e.cur === cur).reduce((s, e) => s + e.amt, 0);
+const pendT = e => (e.voidReq ? e.voidReq.t : e.t);
+const agreeNote = e => { const w = needAgree(e); return w.length ? `要 ${w.join('、')} 同意才會算進金額。` : ''; };
+const doneMsg = (e, plain) => { const w = needAgree(e); return w.length ? `記好了，等 ${w.join('、')} 同意` : plain; };
+function pendSay(e) {
+  const vr = e.voidReq, f = v => money(v, e.cur);
+  if (!waitingMe(e)) return `${waitOf(e).join('、')} 同意後${vr ? '這筆才會作廢' : '才算進金額'}`;
+  const c = waitOf(e).find(isMe), fs = rawFlows(e);
+  if (vr) return `同意後這筆作廢，你會少收 ${f(fs.filter(x => x[0] === c).reduce((s, x) => s + x[2], 0))}`;
+  if (e.type === 'repay') return `${e.from} 說已經轉給你了，確定收到再按同意`;
+  const mine = fs.filter(x => x[1] === c);
+  if (mine.length === 1) return `同意後，你要給 ${mine[0][0]} ${f(mine[0][2])}`;
+  return `同意後，你要給 ${mine.map(x => x[0]).join('、')} 共 ${f(mine.reduce((s, x) => s + x[2], 0))}`;
 }
 
 /* ---------- 文字 ---------- */
@@ -582,6 +617,7 @@ const ICON = {
   bag: '<path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
   bell: '<path d="M6 10a6 6 0 0 1 12 0c0 5.5 2.5 7 2.5 7h-17S6 15.5 6 10z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   plus: '<rect x="4" y="4" width="16" height="16" rx="4.5"/><path d="M12 8.5v7M8.5 12h7"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
 };
 const ico = (n, c) => `<span class="ic" style="background:var(--c-${c})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n]}</svg></span>`;
 const CHEV = '<svg class="chev" viewBox="0 0 8 14" width="8" height="14" aria-hidden="true"><path d="M1.5 1.5L6.5 7l-5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -628,6 +664,9 @@ function vLedger() {
   if (rows.length) h += `<div class="plist">${rows.map(prow).join('')}</div>`;
   h += '</section>';
   const links = [];
+  const pm = S.entries.filter(waitingMe), po = S.entries.filter(waitingOthers);
+  if (pm.length) links.push(`<button class="cell tap ic-row" type="button" data-act="pend" data-who="me">${ico('check', 'orange')}<span class="main"><span class="t"><b>等你同意</b></span></span><span class="cnt">${pm.length}</span>${CHEV}</button>`);
+  if (po.length) links.push(`<button class="cell tap ic-row" type="button" data-act="pend" data-who="others">${ico('clock', 'gray')}<span class="main"><span class="t">等別人同意</span></span><span class="s">${po.length} 筆</span>${CHEV}</button>`);
   if (nc.a || nc.v) {
     const who2 = nc.by.length ? nc.by.join('、') : '對方';
     const txt = nc.a ? `${who2} 新增了 ${nc.a} 筆${nc.v ? `、作廢了 ${nc.v} 筆` : ''}` : `${who2} 作廢了 ${nc.v} 筆`;
@@ -636,7 +675,7 @@ function vLedger() {
   if (openItems) links.push(`<button class="cell tap ic-row" type="button" data-act="tab" data-tab="items">${ico('gem', 'orange')}<span class="main"><span class="t">還沒處理的物品</span></span><span class="s">${openItems} 件</span>${CHEV}</button>`);
   if (links.length) h += group('', links.join(''));
   if (orders.length) h += group('代購中', orders.map(orderCell).join(''), '代購金在結算前不算在上面的錢裡；收完按「結算」，剩下或超過的錢才會算進來。');
-  h += `<p class="foot">每一筆記下就算數，有關的人馬上看得到。記錯了就到「紀錄」點那一筆作廢。${rows.length > 1 ? '每一隻角色的錢分開算、各自結清；最上面的大字只是合計，轉帳時還是每一隻各自按「我轉了」或「我收到了」。' : ''}</p>`;
+  h += `<p class="foot">${S.admin ? '你記的馬上算。別人記的如果對你不利，要你同意才算進金額。' : '會讓別人要多給或少收的，要對方同意才算進金額；其他的記下就算數。'}記錯了就到「紀錄」點那一筆。${rows.length > 1 ? '每一隻角色的錢分開算、各自結清；最上面的大字只是合計，轉帳時還是每一隻各自按「我轉了」或「我收到了」。' : ''}</p>`;
   return h;
 }
 // 跟某一隻角色之間的帳：一行（點左邊看明細，右邊是「我轉了／我收到了」）
@@ -644,10 +683,11 @@ function prow({ y, tb, nt }) {
   const main = tb || nt, cur = tb ? 'tb' : 'nt';
   const dir = (tb ? '' : '台幣') + (main < 0 ? '你要給' : '要給你');
   const extra = tb && nt ? `台幣${nt > 0 ? '要給你' : '你要給'} ${money(Math.abs(nt), 'nt')}` : '';
-  const btn = main < 0
+  const paying = main < 0 ? pendRepay(S.as, y, cur) : 0, getting = main > 0 ? pendRepay(y, S.as, cur) : 0;
+  const btn = Math.abs(main) <= paying + getting ? '' : main < 0
     ? `<button class="btn btn-fill btn-sm" type="button" data-act="settle" data-dir="pay" data-with="${esc(y)}">我轉了</button>`
     : `<button class="btn btn-tint btn-sm" type="button" data-act="settle" data-dir="recv" data-with="${esc(y)}">我收到了</button>`;
-  return `<div class="prow"><button class="pmain" type="button" data-act="calc" data-with="${esc(y)}"><span class="pn">${esc(y)}</span><span class="ps">${esc(dir)}${extra ? ' · ' + esc(extra) : ''} · <b>明細 ›</b></span></button><span class="pa ${cls(main)}">${money(Math.abs(main), cur)}</span>${btn}</div>`;
+  return `<div class="prow"><button class="pmain" type="button" data-act="calc" data-with="${esc(y)}"><span class="pn">${esc(y)}</span><span class="ps">${esc(dir)}${extra ? ' · ' + esc(extra) : ''} · <b>明細 ›</b>${paying ? `<span class="pw">已轉 ${money(paying, cur)}，等對方同意</span>` : getting ? `<span class="pw">對方說已轉 ${money(getting, cur)}，等你同意</span>` : ''}</span></button><span class="pa ${cls(main)}">${money(Math.abs(main), cur)}</span>${btn}</div>`;
 }
 function orderCell(o) {
   const u = unitOf(o.item), agent = o.to[0], buyer = o.from, mf = v => money(v, o.cur), agentMe = agent === S.as;
@@ -700,17 +740,23 @@ function vLog() {
   h += '<p class="foot">點一下可以看詳情或作廢。標「新」的，是對方在你上次看紀錄之後新增或作廢的。</p>';
   return h;
 }
+const waitBadge = x => {
+  if (x.k !== 'e' || x.e.voided) return '';
+  const e = x.e, w = waitOf(e), what = e.voidReq ? '作廢' : '';
+  if (!w.length) return '';
+  return waitingMe(e) ? `<span class="badge">等你同意${what}</span>` : `<span class="badge gray">等 ${esc(w.join('、'))} 同意${what}</span>`;
+};
 function badgesFor(x, voided) {
   const f = newFlags(x, S.me);
-  return (voided ? '<span class="badge gray">已作廢</span>' : '') + (f.add || f.vd ? `<span class="badge new">${f.vd && !f.add ? '新作廢' : '新'}</span>` : '');
+  return waitBadge(x) + (voided ? '<span class="badge gray">已作廢</span>' : '') + (f.add || f.vd ? `<span class="badge new">${f.vd && !f.add ? '新作廢' : '新'}</span>` : '');
 }
 function logCell(x) {
   const me = S.as;
   if (x.k === 'e') {
     const e = x.e, [icn, col] = TYPE_UI[e.type];
-    const sub = myView(e, me) || effect(e, false) || (e.note ? `備註：${e.note}` : '');
+    const sub = (waitingMe(e) && !e.voidReq ? pendSay(e) : '') || myView(e, me) || effect(e, false) || (e.note ? `備註：${e.note}` : '');
     const r = e.type === 'move' ? '' : e.type === 'deliver' ? `<span class="r dim">${e.qty} ${unitOf(e.item)}</span>`
-      : `<span class="r${e.type === 'order' || e.type === 'obuy' ? ' dim' : ''}">${money(e.amt, e.cur)}</span>`;
+      : `<span class="r${e.type === 'order' || e.type === 'obuy' || isPending(e) ? ' dim' : ''}">${money(e.amt, e.cur)}</span>`;
     const bd = badgesFor(x, !!e.voided);
     return `<button class="cell tap ic-row lrow${e.voided ? ' void' : ''}" type="button" data-act="rec" data-id="${e.id}">${ico(icn, col)}<span class="main"><span class="t">${esc(title(e))}</span>${sub ? `<span class="s">${esc(sub)}</span>` : ''}${bd ? `<span class="bdg">${bd}</span>` : ''}</span>${r}</button>`;
   }
@@ -831,7 +877,7 @@ function draftEval(ctx) {
     if (type === 'buy' && d.keep) prev += `；「${item}」放進物品清單，在 ${e.from} 身上`;
     if ((type === 'isell' || type === 'ikeep') && ctx.item.qty > 1) prev += `（${type === 'isell' ? '賣' : '留'} ${qty} ${Q.u}，還剩 ${Q.max - qty} ${Q.u}）`;
   }
-  return { ok: true, e, qty, prev, why: '' };
+  return { ok: true, e, qty, prev, why: agreeNote(e) };
 }
 const showSum = (prefix, r) => {
   const prev = sheet.querySelector('#' + prefix + '-prev'), need = sheet.querySelector('#' + prefix + '-need'), ok = sheet.querySelector('#' + prefix + '-ok');
@@ -880,7 +926,7 @@ function miniEval(ctx) {
     if (!amt) return { need: '還沒填：金額' };
     const diff = x.amt - amt;
     return {
-      ok: true, amt, x, full: diff === 0,
+      ok: true, amt, x, full: diff === 0, why: agreeNote({ type: 'repay', from: x.from, to: [x.to], amt, cur: x.cur }),
       prev: (pay ? `你還 ${x.to} ${moneyFull(amt, x.cur)}` : `${x.from} 還你 ${moneyFull(amt, x.cur)}`) + (diff > 0 ? `，還差 ${moneyFull(diff, x.cur)}` : diff < 0 ? `，比要轉的多 ${moneyFull(-diff, x.cur)}` : '，這樣就結清了'),
     };
   }
@@ -902,7 +948,8 @@ function miniEval(ctx) {
   const prev = left > 0 ? `${agent} 要退 ${buyer} ${moneyFull(left, o.cur)}，會算進帳本，結清時一起還`
     : left < 0 ? `${buyer} 要補 ${agent} ${moneyFull(-left, o.cur)}，會算進帳本，結清時一起算`
     : '剛好用完，不用退也不用補';
-  return { ok: true, left, prev, why: un > 0 ? `還有 ${un} ${u} 沒交給 ${buyer}，結算後還是可以記交貨。` : '' };
+  const note = agreeNote({ type: 'oend', from: left >= 0 ? buyer : agent, to: [left >= 0 ? agent : buyer], amt: Math.abs(left) });
+  return { ok: true, left, prev, why: (un > 0 ? `還有 ${un} ${u} 沒交給 ${buyer}，結算後還是可以記交貨。` : '') + note };
 }
 function miniRefresh(ctx) { const r = miniEval(ctx); showSum(MINI[ctx.k], r); return r; }
 
@@ -920,6 +967,14 @@ function shell(ttl, body, o = {}) {
   return `<div class="grab" aria-hidden="true"></div><div class="sh-nav">${L}<h2 id="sheetTitle">${ttl}</h2>${R}</div><div class="sh-body">${body}</div>`;
 }
 const tail = p => `<div class="sum" id="${p}-prev" aria-live="polite" hidden></div><p class="need" id="${p}-need"></p>`;
+function pendCard(e) {
+  const vr = e.voidReq, mine = waitingMe(e), [icn, col] = TYPE_UI[e.type], from = mine ? 'me' : 'others';
+  const meta = vr ? `${vr.by} 想作廢，原因：${vr.reason}` : `${e.by} 記的 · ${md(e.t)} ${hm(e.t)}${e.note ? ` · ${e.note}` : ''}`;
+  const btns = mine
+    ? `<button class="btn btn-no btn-sm" type="button" data-act="agree-no" data-id="${e.id}" data-from="${from}">不同意</button><button class="btn btn-fill btn-sm" type="button" data-act="agree-yes" data-id="${e.id}" data-from="${from}">同意</button>`
+    : `<button class="btn btn-no btn-sm" type="button" data-act="agree-back" data-id="${e.id}" data-from="${from}">撤回</button>`;
+  return `<div class="cell ocell pcard"><button class="ohead" type="button" data-act="rec" data-id="${e.id}">${ico(icn, col)}<span class="main"><span class="t">${vr ? '作廢「' : ''}${esc(title(e))}${vr ? '」' : ''}</span><span class="s">${esc(pendSay(e))}</span></span><span class="r">${money(e.amt, e.cur)}</span></button><p class="s">${esc(meta)}</p><div class="row">${btns}</div></div>`;
+}
 function sheetHTML(ctx) {
   const me = S.as;
   switch (ctx.k) {
@@ -969,11 +1024,24 @@ function sheetHTML(ctx) {
       if (e.note) rows.push(kv('備註', e.note));
       rows.push(kv('誰記的', e.seed ? `${e.by}（補記）` : `${e.by} · ${md(e.t)} ${hm(e.t)}`));
       if (e.voided) rows.push(kv('狀態', `已作廢：${e.voided.reason}（${e.voided.by} · ${md(e.voided.t)} ${hm(e.voided.t)}）`));
+      else if (waitOf(e).length) { const wh = waitingMe(e) ? '等你同意' : `等 ${waitOf(e).join('、')} 同意`; rows.push(kv('狀態', e.voidReq ? `${e.voidReq.by} 想作廢（${e.voidReq.reason}），${wh}` : `${wh}，同意後才算進金額`)); }
+      if (e.log && e.log.length) rows.push(kv('同意紀錄', e.log.map(l => `${l.by} ${l.what}（${md(l.t)} ${hm(l.t)}）`).join('；')));
       b += group('', rows.join(''));
-      if (canVoidE(e)) b += group('', `<button class="cell tap danger" type="button" data-act="void" data-id="${e.id}">作廢這筆</button>`, '記錯了就作廢，作廢後不算數，但紀錄會留著，有關的人都看得到。');
+      if (waitingMe(e)) b += group('', `<button class="cell tap act" type="button" data-act="agree-yes" data-id="${e.id}">同意</button><button class="cell tap danger" type="button" data-act="agree-no" data-id="${e.id}">不同意</button>`, e.voidReq ? '同意了這筆才會作廢；不同意就維持原樣。' : '同意了才算進金額。不同意要寫原因，這筆會作廢，紀錄還是留著。');
+      else if (waitingOthers(e)) b += group('', `<button class="cell tap danger" type="button" data-act="agree-back" data-id="${e.id}">撤回${e.voidReq ? '作廢' : '這筆'}</button>`, '對方還沒同意，撤回不用等對方。');
+      else if (canVoidE(e)) b += group('', `<button class="cell tap danger" type="button" data-act="void" data-id="${e.id}">作廢這筆</button>`, '記錯了就作廢，作廢後不算數，但紀錄會留著，有關的人都看得到。');
       else if (!e.voided && batchLocked(e)) b += '<p class="foot">已經結算了。要改這批，先作廢「代購結算」那筆。</p>';
       else if (!e.voided && orderLocked(e)) b += '<p class="foot">已經有收貨或結算紀錄。要作廢代購金，先把那些紀錄作廢。</p>';
       return shell(esc(typeLabel(e)), b, { left: '', right: '完成' });
+    }
+    case 'pend': {
+      const mine = ctx.who === 'me', list = S.entries.filter(mine ? waitingMe : waitingOthers).slice().sort((a, z) => (pendT(a) < pendT(z) ? 1 : -1));
+      const foot = mine ? '按同意才算進金額。不同意要寫原因，那一筆會作廢，紀錄還是留著；如果是別人想作廢的，不同意就維持原樣。' : '對方同意了才算數。對方還沒按之前，你可以自己撤回。';
+      return shell(mine ? '等你同意' : '等別人同意', list.length ? group('', list.map(pendCard).join(''), foot) : '<p class="foot">目前沒有。</p>', { left: '', right: '完成' });
+    }
+    case 'reject': {
+      const e = ctx.e, vr = e.voidReq, sum = `${vr ? '作廢「' : ''}${title(e)}${vr ? '」' : ''} · ${moneyFull(e.amt, e.cur)}`;
+      return shell('不同意', `<form id="f" novalidate><p class="foot tight">${esc(sum)}</p>${group('', '<label class="cell field"><span class="k">原因</span><input id="v-reason" type="text" maxlength="40" autocomplete="off" placeholder="例：金額不對"></label>', vr ? '這筆維持原樣，原因會留在這筆的紀錄裡。' : `這筆會作廢，不算進金額，紀錄還是留著，${esc(e.by)} 看得到原因。`)}<p class="need" id="v-need"></p></form>`, { right: '送出', rightId: 'v-ok', form: true, danger: true });
     }
     case 'obuy': {
       const o = ctx.o, u = unitOf(o.item), left = o.amt - spentOf(o), lu = lastUnit(o), unitTxt = o.cur === 'tb' ? '天幣' : '元';
@@ -1008,7 +1076,8 @@ function sheetHTML(ctx) {
     }
     case 'void': {
       const sum = ctx.e ? `${title(ctx.e)}${ctx.e.type === 'deliver' || ctx.e.type === 'move' ? '' : ` · ${moneyFull(ctx.e.amt, ctx.e.cur)}`}` : `打到「${ctx.item.name}」`;
-      return shell('作廢', `<form id="f" novalidate><p class="foot tight">${esc(sum)}</p>${group('', '<label class="cell field"><span class="k">原因</span><input id="v-reason" type="text" maxlength="40" autocomplete="off" placeholder="例：金額打錯"></label>', '作廢後不算數，但紀錄會留著，對方會看到「新作廢」。要改的話，作廢後再記一筆正確的。')}<p class="need" id="v-need"></p></form>`, { right: '作廢', rightId: 'v-ok', form: true, danger: true });
+      const w = ctx.e ? needAgreeVoid(ctx.e) : [], vf = w.length ? `這筆作廢後，${w.join('、')} 會少收錢，要 ${w.join('、')} 同意才會作廢。同意之前這筆照算。` : '作廢後不算數，但紀錄會留著，對方會看到「新作廢」。要改的話，作廢後再記一筆正確的。';
+      return shell(w.length ? '申請作廢' : '作廢', `<form id="f" novalidate><p class="foot tight">${esc(sum)}</p>${group('', '<label class="cell field"><span class="k">原因</span><input id="v-reason" type="text" maxlength="40" autocomplete="off" placeholder="例：金額打錯"></label>', esc(vf))}<p class="need" id="v-need"></p></form>`, { right: w.length ? '送出' : '作廢', rightId: 'v-ok', form: true, danger: !w.length });
     }
     case 'order': {
       // 代購明細：每一批收多少、交了多少、結算
@@ -1105,7 +1174,7 @@ async function undo(list) {
   toast('復原中…');
   try {
     let d = null;
-    for (const x of list) d = await api('void', { kind: x.kind, id: x.id, reason: '剛記錯，按了復原' });
+    for (const x of list) d = await api('void', { kind: x.kind, id: x.id, reason: '剛記錯，按了復原', undo: true });
     if (d) applyData(d);
     render();
     toast('已復原：剛剛那筆已作廢');
@@ -1134,9 +1203,29 @@ function submitForm(ctx) {
       e.itemId = ctx.item.id;
     }
     payload.entries.push(e);
-    msg = `記好了：${title(e)}`;
+    msg = doneMsg(e, `記好了：${title(e)}`);
   }
   save(() => api('add', payload), msg, ctx.type === 'loot' ? 'items' : null, undoOf(payload));
+}
+
+// 同意、不同意、撤回；從清單來的，清單還有別筆就留在清單上
+async function agree(id, how, reason, from) {
+  if (saving) return;
+  saving = true;
+  const btn = sheet.querySelector('button[type="submit"]'), label = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '儲存中…'; } else toast('處理中…');
+  try {
+    applyData(await api('agree', { id, how, reason }));
+    saving = false;
+    if (from && S.entries.some(from === 'me' ? waitingMe : waitingOthers)) openSheet({ k: 'pend', who: from }); else closeSheet();
+    render();
+    toast(how === 'yes' ? '已同意' : how === 'no' ? '已送出不同意' : '已撤回');
+  } catch (err) {
+    saving = false;
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+    toast('沒存到：' + err.message);
+    load(true);
+  }
 }
 
 let toastTimer;
@@ -1214,6 +1303,10 @@ document.addEventListener('click', ev => {
   }
   else if (a === 'a2hs-ok') { try { localStorage.setItem(A2HS_KEY, '1'); } catch (_) {} render(); }
   else if (a === 'item') { const it = findI(b.dataset.item); if (it) openSheet({ k: 'item', item: it }); }
+  else if (a === 'pend') openSheet({ k: 'pend', who: b.dataset.who });
+  else if (a === 'agree-yes') agree(b.dataset.id, 'yes', '', b.dataset.from || '');
+  else if (a === 'agree-back') agree(b.dataset.id, 'back', '', b.dataset.from || '');
+  else if (a === 'agree-no') openSheet({ k: 'reject', e: findE(b.dataset.id), from: b.dataset.from || '' });
   else if (a === 'rec') { const e = findE(b.dataset.id); if (e) openSheet({ k: 'rec', e }); }
   else if (a === 'void') openSheet(b.dataset.id ? { k: 'void', e: findE(b.dataset.id) } : { k: 'void', item: findI(b.dataset.item) });
   else if (a === 'addamt') {
@@ -1240,7 +1333,7 @@ document.addEventListener('click', ev => {
   else if (a === 'settle') {
     const A = S.as, y = b.dataset.with, pay = b.dataset.dir === 'pay';
     const cands = ['tb', 'nt'].map(c => ({ c, v: bal(A, y, c) })).filter(x => (pay ? x.v < 0 : x.v > 0))
-      .map(x => (pay ? { from: A, to: y, amt: -x.v, cur: x.c } : { from: y, to: A, amt: x.v, cur: x.c }));
+      .map(x => (pay ? { from: A, to: y, amt: -x.v - pendRepay(A, y, x.c), cur: x.c } : { from: y, to: A, amt: x.v - pendRepay(y, A, x.c), cur: x.c })).filter(x => x.amt > 0);
     if (cands.length) openSheet({ k: 'settle', cands, sel: 0 });
   }
 });
@@ -1253,7 +1346,7 @@ sheet.addEventListener('input', () => {
   if (!SH || saving) return;
   if (SH.k === 'form') refresh(SH);
   else if (MINI[SH.k]) miniRefresh(SH);
-  else if (SH.k === 'void') sheet.querySelector('#v-ok').disabled = !sheet.querySelector('#v-reason').value.trim();
+  else if (SH.k === 'void' || SH.k === 'reject') sheet.querySelector('#v-ok').disabled = !sheet.querySelector('#v-reason').value.trim();
 });
 sheet.addEventListener('change', ev => {
   if (!SH || saving) return;
@@ -1285,7 +1378,7 @@ sheet.addEventListener('submit', ev => {
     if (!r.ok) return;
     if (SH.k === 'settle') {
       const e = { id: idFor(SH, 'e'), type: 'repay', from: r.x.from, to: [r.x.to], amt: r.amt, cur: r.x.cur, item: '', note: r.full ? '結清' : '', settle: true };
-      save(() => api('add', { entries: [e] }), `記好了：${title(e)} ${moneyFull(e.amt, e.cur)}`, null, undoOf({ entries: [e] }));
+      save(() => api('add', { entries: [e] }), doneMsg(e, `記好了：${title(e)} ${moneyFull(e.amt, e.cur)}`), null, undoOf({ entries: [e] }));
       return;
     }
     const o = SH.o, u = unitOf(o.item), agent = o.to[0], buyer = o.from;
@@ -1301,7 +1394,7 @@ sheet.addEventListener('submit', ev => {
       const left = r.left;
       const oe = Object.assign({ id: idFor(SH, 'e'), type: 'oend', from: left >= 0 ? buyer : agent, to: [left >= 0 ? agent : buyer], amt: Math.abs(left), refund: left >= 0 }, common);
       save(() => api('add', { entries: [oe] }),
-        left > 0 ? `記好了：${agent} 要退 ${buyer} ${moneyFull(left, o.cur)}` : left < 0 ? `記好了：${buyer} 要補 ${agent} ${moneyFull(-left, o.cur)}` : '記好了：剛好用完', null, undoOf({ entries: [oe] }));
+        doneMsg(oe, left > 0 ? `記好了：${agent} 要退 ${buyer} ${moneyFull(left, o.cur)}` : left < 0 ? `記好了：${buyer} 要補 ${agent} ${moneyFull(-left, o.cur)}` : '記好了：剛好用完'), null, undoOf({ entries: [oe] }));
     }
   } else if (SH.k === 'hand') {
     const i = SH.item;
@@ -1309,7 +1402,11 @@ sheet.addEventListener('submit', ev => {
   } else if (SH.k === 'void') {
     const reason = sheet.querySelector('#v-reason').value.trim();
     if (!reason) return;
-    save(() => api('void', SH.e ? { kind: 'e', id: SH.e.id, reason } : { kind: 'i', id: SH.item.id, reason }), '已作廢，紀錄還留著');
+    const w = SH.e ? needAgreeVoid(SH.e) : [];
+    save(() => api('void', SH.e ? { kind: 'e', id: SH.e.id, reason } : { kind: 'i', id: SH.item.id, reason }), w.length ? `已送出，等 ${w.join('、')} 同意` : '已作廢，紀錄還留著');
+  } else if (SH.k === 'reject') {
+    const reason = sheet.querySelector('#v-reason').value.trim();
+    if (reason) agree(SH.e.id, 'no', reason, SH.from);
   }
 });
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && !wrap.hidden && !saving) closeSheet(); });
