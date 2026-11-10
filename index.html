@@ -787,10 +787,10 @@ const LABELS = {
 };
 function newDraft(type) {
   const L = LABELS[type], A = S.as, two = M.length === 2, other = M.find(p => p !== S.me) || '';
-  // 誰有份預設：這一隻最近一次有份的寶物勾了誰，就先勾誰；還沒有紀錄時只勾自己
+  // 誰有份預設：新增寶物全部都勾；直接賣掉分錢時，這一隻最近一次有份的寶物勾了誰，就先勾誰，還沒有紀錄時只勾自己
   const lastLoot = S.items.filter(i => i.kind === 'loot' && i.status !== 'void' && i.owners.includes(A)).pop();
   const owners = lastLoot ? NAMES.filter(p => p === A || lastLoot.owners.includes(p)) : [A];
-  let from = A, to = L.multi ? owners : (two ? [other] : []);
+  let from = A, to = type === 'loot' ? NAMES.slice() : L.multi ? owners : (two ? [other] : []);
   if (type === 'order' && two) { from = other; to = [A]; } // 通常是對方把錢給你
   return { from, to, cur: 'tb', amt: '', item: '', note: '', keep: true, qty: '1' };
 }
