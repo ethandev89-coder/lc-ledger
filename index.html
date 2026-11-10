@@ -438,7 +438,7 @@ function shares(e) {
 }
 // 一筆帳讓誰欠誰：[債主, 欠錢的那隻, 金額]，每一隻角色分開算。代購金在「結算」之前不算進來
 function flows(e) {
-  if (e.type === 'order' || e.type === 'obuy' || e.type === 'deliver') return [];
+  if (e.type === 'order' || e.type === 'obuy' || e.type === 'deliver' || e.type === 'move') return [];
   if (e.type === 'split') return [...shares(e)].filter(([p, v]) => p !== e.from && v).map(([p, v]) => [p, e.from, v]);
   return e.amt ? [[e.from, e.to[0], e.amt]] : [];
 }
@@ -504,7 +504,7 @@ function newCounts(me) {
 }
 
 /* ---------- 文字 ---------- */
-const typeLabel = e => ({ loan: '借錢', repay: '還錢', buy: '代墊', order: '代購', obuy: '收了一批', deliver: '交貨', oend: '代購結算', split: e.kept ? '留著自己用' : '分寶' })[e.type];
+const typeLabel = e => ({ loan: '借錢', repay: '還錢', buy: '代墊', order: '代購', obuy: '收了一批', deliver: '交貨', oend: '代購結算', move: '轉給別人', split: e.kept ? '留著自己用' : '分寶' })[e.type];
 function title(e) {
   const q = e.qty > 1 ? ` ×${e.qty}` : '', u = unitOf(e.item || '');
   switch (e.type) {
@@ -514,6 +514,7 @@ function title(e) {
     case 'order': return `${e.from} 給 ${e.to[0]} 代購金「${e.item}」`;
     case 'obuy': return `${e.from} 收了「${e.item}」${e.qty} ${u}`;
     case 'deliver': return `${e.from} 交給 ${e.to[0]}「${e.item}」${e.qty} ${u}`;
+    case 'move': return `${e.from} 把「${e.item}」轉給 ${e.to[0]}`;
     case 'oend': return e.amt ? `「${e.item}」代購結算：${e.to[0]} 要${e.refund ? '退' : '補'} ${e.from}` : `「${e.item}」代購結算：剛好用完`;
     default: return e.kept ? `${e.from} 留著「${e.item}」${q}自己用` : `${e.from} 賣掉「${e.item}」${q}`;
   }
@@ -523,6 +524,7 @@ function effect(e, full) {
   switch (e.type) {
     case 'repay': return full ? `${e.from} 還 ${e.to[0]} ${f(e.amt)}` : '';
     case 'deliver': return '';
+    case 'move': return '';
     case 'order': {
       if (e.voided) return '';
       const sp = spentOf(e), b = boughtOf(e), un = b - deliveredOf(e), left = e.amt - sp;
@@ -583,7 +585,7 @@ const ICON = {
 };
 const ico = (n, c) => `<span class="ic" style="background:var(--c-${c})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n]}</svg></span>`;
 const CHEV = '<svg class="chev" viewBox="0 0 8 14" width="8" height="14" aria-hidden="true"><path d="M1.5 1.5L6.5 7l-5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const TYPE_UI = { loan: ['up', 'blue'], repay: ['down', 'green'], buy: ['bag', 'purple'], order: ['cart', 'indigo'], obuy: ['cart', 'indigo'], deliver: ['box', 'indigo'], oend: ['check', 'indigo'], split: ['gem', 'orange'] };
+const TYPE_UI = { loan: ['up', 'blue'], repay: ['down', 'green'], buy: ['bag', 'purple'], order: ['cart', 'indigo'], obuy: ['cart', 'indigo'], deliver: ['box', 'indigo'], oend: ['check', 'indigo'], move: ['box', 'orange'], split: ['gem', 'orange'] };
 const group = (head, body, foot) => `<div class="grp">${head ? `<div class="grp-h">${head}</div>` : ''}<div class="grp-b">${body}</div>${foot ? `<div class="grp-f">${foot}</div>` : ''}</div>`;
 const kv = (k, v, vc = '') => `<div class="cell kv"><span class="k">${esc(k)}</span><span class="v ${vc}">${esc(v)}</span></div>`;
 const seg = (name, list, sel, lab = x => x) => `<div class="segc" role="radiogroup">${list.map((p, i) => `<label><input type="radio" name="${name}" id="${name}-${i}" value="${esc(p)}"${p === sel ? ' checked' : ''}><span>${esc(lab(p))}</span></label>`).join('')}</div>`;
@@ -707,7 +709,7 @@ function logCell(x) {
   if (x.k === 'e') {
     const e = x.e, [icn, col] = TYPE_UI[e.type];
     const sub = myView(e, me) || effect(e, false) || (e.note ? `備註：${e.note}` : '');
-    const r = e.type === 'deliver' ? `<span class="r dim">${e.qty} ${unitOf(e.item)}</span>`
+    const r = e.type === 'move' ? '' : e.type === 'deliver' ? `<span class="r dim">${e.qty} ${unitOf(e.item)}</span>`
       : `<span class="r${e.type === 'order' || e.type === 'obuy' ? ' dim' : ''}">${money(e.amt, e.cur)}</span>`;
     const bd = badgesFor(x, !!e.voided);
     return `<button class="cell tap ic-row lrow${e.voided ? ' void' : ''}" type="button" data-act="rec" data-id="${e.id}">${ico(icn, col)}<span class="main"><span class="t">${esc(title(e))}</span>${sub ? `<span class="s">${esc(sub)}</span>` : ''}${bd ? `<span class="bdg">${bd}</span>` : ''}</span>${r}</button>`;
@@ -735,6 +737,7 @@ const LABELS = {
   sell:  { title: '賣掉分錢', from: '錢在誰身上', to: '誰有份', multi: true, amt: '賣出的總價', item: '賣了什麼' },
   isell: { title: '賣掉了', from: '錢在誰身上', to: null, amt: '這次賣出的總價' }, // 誰有份沿用新增寶物時填的
   ikeep: { title: '留著自己用', from: '誰要留', to: null, amt: '講好的總價' },
+  imove: { title: '轉給別人', from: '轉給誰', to: null, noMoney: true },
 };
 function newDraft(type) {
   const L = LABELS[type], A = S.as, two = M.length === 2, other = M.find(p => p !== S.me) || '';
@@ -754,7 +757,7 @@ function qtyInfo(ctx) {
 }
 function formHTML(ctx) {
   const { type, d } = ctx, L = LABELS[type], Q = qtyInfo(ctx);
-  const fromList = type === 'ikeep' ? ctx.item.owners : NAMES;
+  const fromList = type === 'ikeep' ? ctx.item.owners : type === 'imove' ? NAMES.filter(p => p !== ctx.item.holder) : NAMES;
   let h = '<form id="f" novalidate>';
   if (L.item) {
     const ph = type === 'order' || type === 'buy' ? '打幾個字找官方名稱，例：鎧甲' : '打幾個字找官方名稱，例：31樓';
@@ -762,6 +765,7 @@ function formHTML(ctx) {
   }
   if (type === 'isell') h += `<p class="foot tight">有份：${esc(ctx.item.owners.join('、'))}（新增時填的），賣掉的錢照這個分。</p>`;
   if (type === 'ikeep') h += `<p class="foot tight">有份：${esc(ctx.item.owners.join('、'))}。留下的人照講好的價錢，把錢分給其他有份的人。</p>`;
+  if (type === 'imove') h += `<p class="foot tight">現在在 ${esc(ctx.item.holder)} 身上。轉過去之後，賣掉的錢由新拿著的人分給有份的人。</p>`;
   if (L.to && !L.multi) {
     h += group('', `<div class="cell pick"><span class="k">${L.from}</span>${seg('from', fromList, d.from)}</div><div class="cell pick"><span class="k">${L.to}</span>${seg('to', NAMES, d.to[0] || '')}</div>`);
   } else {
@@ -801,6 +805,10 @@ function draftEval(ctx) {
     qty = parseInt(d.qty, 10);
     if (!(qty >= 1)) return { need: `還沒填：${Q.label}` };
     if (qty > Q.max) return { need: `最多 ${Q.max} ${Q.u}` };
+  }
+  if (type === 'imove') {
+    const left = leftOf(ctx.item);
+    return { ok: true, qty, e: { type: 'move', from: ctx.item.holder, to: [d.from], amt: 0, cur: 'tb', item }, prev: `「${item}」${left > 1 ? `剩下的 ${left} ${Q.u}` : ''}改成在 ${d.from} 身上。誰有份不變，也不會動到錢。` };
   }
   if (type === 'loot') return { ok: true, qty, prev: `「${item}」${qty > 1 ? ` ×${qty}` : ''} 放進物品清單，在 ${d.from} 身上，${d.to.length} 人有份。賣掉時再分錢。` };
   let e;
@@ -941,10 +949,12 @@ function sheetHTML(ctx) {
       rows.push(kv('誰記的', i.seed ? `${i.by}（補記）` : `${i.by} · ${md(i.t)} ${hm(i.t)}`));
       b += group('', rows.join(''));
       if (ss.length) b += group('賣出紀錄', ss.map(e => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${e.kept ? `${esc(e.from)} 留著用` : '賣掉'} ${e.qty || 1} ${u}</span><span class="s">${e.kept ? '講好的價錢' : `錢在 ${esc(e.from)} 身上`}</span></span><span class="s">${money(e.amt, e.cur)}</span>${CHEV}</button>`).join(''));
+      const mvs = S.entries.filter(e => e.itemId === i.id && e.type === 'move' && !e.voided);
+      if (mvs.length) b += group('轉手紀錄', mvs.map(e => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${esc(e.from)} → ${esc(e.to[0])}</span><span class="s">${md(e.t)} ${hm(e.t)} · ${esc(e.by)} 記的</span></span>${CHEV}</button>`).join(''));
       const acts = [];
-      if (open && loot) acts.push(`<button class="cell tap act" type="button" data-act="sell" data-item="${i.id}">賣掉了</button>`, `<button class="cell tap act" type="button" data-act="keep" data-item="${i.id}">留著自己用</button>`);
+      if (open && loot) acts.push(`<button class="cell tap act" type="button" data-act="sell" data-item="${i.id}">賣掉了</button>`, `<button class="cell tap act" type="button" data-act="keep" data-item="${i.id}">留著自己用</button>`, `<button class="cell tap act" type="button" data-act="move" data-item="${i.id}">轉給別人</button>`);
       if (open && !loot) acts.push(`<button class="cell tap act" type="button" data-act="hand" data-item="${i.id}">已交給 ${esc(i.owners[0])}</button>`);
-      if (acts.length) b += group('', acts.join(''), open && loot ? '留著自己用：有份的人想自己用，先講好價錢，就當作用這個價錢買下，錢分給其他有份的人。' : '');
+      if (acts.length) b += group('', acts.join(''), open && loot ? '留著自己用：有份的人想自己用，先講好價錢，就當作用這個價錢買下，錢分給其他有份的人。轉給別人：換成別人拿著，之後由對方賣，不會動到錢。' : '');
       if (canVoidItem(i)) b += group('', `<button class="cell tap danger" type="button" data-act="void" data-item="${i.id}">作廢這件物品</button>`);
       return shell(esc(i.name), b, { left: '', right: '完成' });
     }
@@ -952,7 +962,7 @@ function sheetHTML(ctx) {
       const e = ctx.e, [icn, col] = TYPE_UI[e.type], mv = myView(e, me), eff = effect(e, true);
       let b = `<div class="dhead">${ico(icn, col)}<div class="main"><p class="dt">${esc(title(e))}</p><p class="ds">${esc(typeLabel(e))}</p></div></div>`;
       const rows = [];
-      rows.push(e.type === 'deliver' ? kv('數量', `${e.qty} ${unitOf(e.item)}`, 'strong') : kv(e.type === 'order' ? '代購金' : '金額', moneyFull(e.amt, e.cur), 'strong'));
+      rows.push(e.type === 'move' ? kv('物品', e.item, 'strong') : e.type === 'deliver' ? kv('數量', `${e.qty} ${unitOf(e.item)}`, 'strong') : kv(e.type === 'order' ? '代購金' : '金額', moneyFull(e.amt, e.cur), 'strong'));
       if (mv) rows.push(kv('對你來說', mv));
       else if (eff) rows.push(kv('內容', eff));
       if (e.note) rows.push(kv('備註', e.note));
@@ -996,7 +1006,7 @@ function sheetHTML(ctx) {
       return shell('交貨', `<form id="f" novalidate><p class="lead">確定「${esc(i.name)}」已經交給 ${esc(i.owners[0])} 了？</p><p class="need" id="h-need"></p></form>`, { right: '確定', form: true, enabled: true });
     }
     case 'void': {
-      const sum = ctx.e ? `${title(ctx.e)}${ctx.e.type === 'deliver' ? '' : ` · ${moneyFull(ctx.e.amt, ctx.e.cur)}`}` : `打到「${ctx.item.name}」`;
+      const sum = ctx.e ? `${title(ctx.e)}${ctx.e.type === 'deliver' || ctx.e.type === 'move' ? '' : ` · ${moneyFull(ctx.e.amt, ctx.e.cur)}`}` : `打到「${ctx.item.name}」`;
       return shell('作廢', `<form id="f" novalidate><p class="foot tight">${esc(sum)}</p>${group('', '<label class="cell field"><span class="k">原因</span><input id="v-reason" type="text" maxlength="40" autocomplete="off" placeholder="例：金額打錯"></label>', '作廢後不算數，但紀錄會留著，對方會看到「新作廢」。要改的話，作廢後再記一筆正確的。')}<p class="need" id="v-need"></p></form>`, { right: '作廢', rightId: 'v-ok', form: true, danger: true });
     }
     case 'order': {
@@ -1218,6 +1228,10 @@ document.addEventListener('click', ev => {
   } else if (a === 'keep') {
     const it = findI(b.dataset.item);
     openSheet({ k: 'form', type: 'ikeep', item: it, d: { from: it.owners.find(p => p === S.as) || it.owners.find(isMe) || it.owners[0], to: it.owners.slice(), cur: 'tb', amt: '', item: it.name, note: '', keep: false, qty: '1' } });
+  } else if (a === 'move') {
+    const it = findI(b.dataset.item);
+    const to = NAMES.find(p => who(p) !== who(it.holder)) || NAMES.find(p => p !== it.holder) || '';
+    openSheet({ k: 'form', type: 'imove', item: it, d: { from: to, to: [], cur: 'tb', amt: '', item: it.name, note: '', keep: false, qty: '1' } });
   } else if (a === 'hand') openSheet({ k: 'hand', item: findI(b.dataset.item) });
   else if (a === 'o-buy') openSheet({ k: 'obuy', o: findE(b.dataset.id) });
   else if (a === 'o-deliver') openSheet({ k: 'odeliver', o: findE(b.dataset.id) });
