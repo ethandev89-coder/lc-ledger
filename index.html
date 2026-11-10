@@ -636,7 +636,7 @@ function vLedger() {
   if (openItems) links.push(`<button class="cell tap ic-row" type="button" data-act="tab" data-tab="items">${ico('gem', 'orange')}<span class="main"><span class="t">還沒處理的物品</span></span><span class="s">${openItems} 件</span>${CHEV}</button>`);
   if (links.length) h += group('', links.join(''));
   if (orders.length) h += group('代購中', orders.map(orderCell).join(''), '代購金在結算前不算在上面的錢裡；收完按「結算」，剩下或超過的錢才會算進來。');
-  h += `<p class="foot">每一筆記下就算數，兩邊馬上看得到。記錯了就到「紀錄」點那一筆作廢。${rows.length > 1 ? '每一隻角色的錢分開算、各自結清；最上面的大字只是合計，轉帳時還是每一隻各自按「我轉了」或「我收到了」。' : ''}</p>`;
+  h += `<p class="foot">每一筆記下就算數，有關的人馬上看得到。記錯了就到「紀錄」點那一筆作廢。${rows.length > 1 ? '每一隻角色的錢分開算、各自結清；最上面的大字只是合計，轉帳時還是每一隻各自按「我轉了」或「我收到了」。' : ''}</p>`;
   return h;
 }
 // 跟某一隻角色之間的帳：一行（點左邊看明細，右邊是「我轉了／我收到了」）
@@ -741,8 +741,9 @@ const LABELS = {
 };
 function newDraft(type) {
   const L = LABELS[type], A = S.as, two = M.length === 2, other = M.find(p => p !== S.me) || '';
-  // 誰有份預設：現在這一隻，加上別人的主角色（自己的另一隻也有份再勾）
-  const owners = NAMES.filter(p => p === A || (M.includes(p) && !isMe(p)));
+  // 誰有份預設：這一隻最近一次有份的寶物勾了誰，就先勾誰；還沒有紀錄時只勾自己
+  const lastLoot = S.items.filter(i => i.kind === 'loot' && i.status !== 'void' && i.owners.includes(A)).pop();
+  const owners = lastLoot ? NAMES.filter(p => p === A || lastLoot.owners.includes(p)) : [A];
   let from = A, to = L.multi ? owners : (two ? [other] : []);
   if (type === 'order' && two) { from = other; to = [A]; } // 通常是對方把錢給你
   return { from, to, cur: 'tb', amt: '', item: '', note: '', keep: true, qty: '1' };
@@ -969,7 +970,7 @@ function sheetHTML(ctx) {
       rows.push(kv('誰記的', e.seed ? `${e.by}（補記）` : `${e.by} · ${md(e.t)} ${hm(e.t)}`));
       if (e.voided) rows.push(kv('狀態', `已作廢：${e.voided.reason}（${e.voided.by} · ${md(e.voided.t)} ${hm(e.voided.t)}）`));
       b += group('', rows.join(''));
-      if (canVoidE(e)) b += group('', `<button class="cell tap danger" type="button" data-act="void" data-id="${e.id}">作廢這筆</button>`, '記錯了就作廢，作廢後不算數，但紀錄會留著，兩邊都看得到。');
+      if (canVoidE(e)) b += group('', `<button class="cell tap danger" type="button" data-act="void" data-id="${e.id}">作廢這筆</button>`, '記錯了就作廢，作廢後不算數，但紀錄會留著，有關的人都看得到。');
       else if (!e.voided && batchLocked(e)) b += '<p class="foot">已經結算了。要改這批，先作廢「代購結算」那筆。</p>';
       else if (!e.voided && orderLocked(e)) b += '<p class="foot">已經有收貨或結算紀錄。要作廢代購金，先把那些紀錄作廢。</p>';
       return shell(esc(typeLabel(e)), b, { left: '', right: '完成' });
