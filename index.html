@@ -266,12 +266,11 @@ button.cell { border: 0; background: none; text-align: left; cursor: pointer; }
 .cell.sugg { display: block; }
 .sugg-h { margin-bottom: 8px; font-size: 13px; color: var(--label-2); }
 .ptr { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 8px); left: 50%; z-index: 15; transform: translateX(-50%); padding: 6px 14px; border-radius: 16px; background: var(--hud); color: var(--on-color); font-size: 13px; font-weight: 600; pointer-events: none; }
-@keyframes slideL { from { transform: translateX(28px); opacity: .35; } to { transform: none; opacity: 1; } }
-@keyframes slideR { from { transform: translateX(-28px); opacity: .35; } to { transform: none; opacity: 1; } }
-@media (prefers-reduced-motion: no-preference) {
-  .slide-l { animation: slideL .22s ease-out; }
-  .slide-r { animation: slideR .22s ease-out; }
-}
+/* 左右滑換分頁：畫面跟著手指走；旁邊那一頁是暫時疊上去的，放開後換成真的 */
+.swipe-clip { overflow-x: hidden; overflow-x: clip; touch-action: pan-y pinch-zoom; min-height: calc(100vh - env(safe-area-inset-top, 0px)); min-height: calc(100dvh - env(safe-area-inset-top, 0px)); }
+.swipe-ghost { position: fixed; inset: 0; z-index: 1; overflow: hidden; padding-top: env(safe-area-inset-top, 0px); background: var(--bg); will-change: transform; pointer-events: none; }
+.swiping { -webkit-user-select: none; user-select: none; }
+.swiping .tap:active { background: none; }
 .cnt { flex: none; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 11px; background: var(--c-red); color: #fff; font-size: 13px; font-weight: 700; line-height: 22px; text-align: center; }
 .pcard .row { margin-top: 8px; }
 .pcard .row .btn { flex: 1; }
@@ -283,12 +282,14 @@ button.cell { border: 0; background: none; text-align: left; cursor: pointer; }
 </style>
 </head>
 <body>
-<div class="app">
+<div class="swipe-clip">
+<div class="app" id="page">
   <header class="lhead">
     <h1 class="ltitle" id="ltText">銷贓銀行</h1>
     <button class="avatar" id="avatar" type="button" data-act="me" aria-haspopup="dialog" hidden></button>
   </header>
   <main id="view"></main>
+</div>
 </div>
 
 <button class="fab" id="fab" type="button" data-act="new" aria-label="新增" aria-haspopup="dialog" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -1245,7 +1246,11 @@ function toast(msg, action) {
   toastTimer = setTimeout(() => { el.hidden = true; }, action ? 6000 : 2600);
 }
 
+const titleOf = t => (t === 'ledger' ? '銷贓銀行' : t === 'items' ? '物品' : '紀錄');
+const pageOf = t => (t === 'ledger' ? vLedger() : t === 'items' ? vItems() : vLog());
+let swiping = false, swipeDirty = false; // 手指正在拖的時候先不重畫，放開後再畫
 function render() {
+  if (swiping) { swipeDirty = true; return; }
   const t = S.tab, ready = S.loaded;
   const av = $('#avatar'), fab = $('#fab');
   av.hidden = !ready; fab.hidden = !ready; $('#tabbar').hidden = !ready;
@@ -1255,11 +1260,11 @@ function render() {
     fab.dataset.type = t === 'items' ? 'loot' : '';
     fab.setAttribute('aria-label', t === 'items' ? '新增寶物' : '新增');
   }
-  $('#ltText').textContent = t === 'ledger' ? '銷贓銀行' : t === 'items' ? '物品' : '紀錄';
+  $('#ltText').textContent = titleOf(t);
   for (const b of document.querySelectorAll('.tab')) b.setAttribute('aria-current', b.dataset.tab === t ? 'page' : 'false');
   if (!KEY) { view.innerHTML = stateHTML('要用專屬網址打開', '這本帳只給自己人用。請用你的專屬網址打開；網址不見了，請跟建立帳本的人要一個。'); return; }
   if (!ready) { view.innerHTML = S.error ? stateHTML('連不上帳本', S.error, true) : stateHTML('載入中…', '第一次打開要等幾秒。'); return; }
-  view.innerHTML = t === 'ledger' ? vLedger() : t === 'items' ? vItems() : vLog();
+  view.innerHTML = pageOf(t);
 }
 // 離開「紀錄」（換分頁、或切到別的 App）時，把現在記成「看過了」
 function leaveLog(leavingPage) {
@@ -1270,15 +1275,14 @@ function leaveLog(leavingPage) {
   }
   api('seen').then(d => { S.seen[S.me] = d.seen || S.seen[S.me]; }).catch(() => {});
 }
-// 換分頁；dir = 'next'／'prev' 時（左右滑）帶一點滑動的動畫。點目前這頁就捲回最上面
-function goTab(tab, dir) {
+// 換分頁。點目前這頁就捲回最上面
+function goTab(tab) {
+  if (swiping) return;
   if (tab === S.tab) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
   if (tab !== 'log') leaveLog();
   S.tab = tab;
   render();
   window.scrollTo(0, 0);
-  view.classList.remove('slide-l', 'slide-r');
-  if (dir) { void view.offsetWidth; view.classList.add(dir === 'next' ? 'slide-l' : 'slide-r'); }
 }
 
 /* ---------- 事件 ---------- */
@@ -1460,24 +1464,105 @@ document.addEventListener('visibilitychange', () => {
 });
 setInterval(() => { if (document.visibilityState === 'visible' && wrap.hidden && S.loaded) load(true); }, 60000);
 
-// 左右滑換分頁（沒開面板時）：往左滑到下一頁、往右滑回上一頁；螢幕最邊邊留給瀏覽器的「上一頁」手勢
+// 左右滑換分頁（沒開面板時）：畫面跟著手指走，旁邊那一頁同時跟進來；放開後照手速滑到位，拖不夠就彈回去。螢幕最邊邊留給瀏覽器的「上一頁」手勢
 (() => {
-  let sx = 0, sy = 0, st = 0, on = false;
+  const page = $('#page'), EDGE = 24, SLOP = 8, RUBBER = .3, EASE = 'cubic-bezier(.2, .75, .25, 1)';
+  let touch = null, ghost = null, ghostTab = '', ghostX = 0, shownX = 0, frame = 0, width = 0, settling = false;
+  const mark = tab => { for (const b of document.querySelectorAll('.tab')) b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'); };
+  function paint() {
+    frame = 0;
+    page.style.transform = `translate3d(${shownX}px,0,0)`;
+    if (ghost) ghost.style.transform = `translate3d(${shownX + ghostX}px,0,0)`;
+  }
+  function dropGhost() { if (ghost) ghost.remove(); ghost = null; ghostTab = ''; }
+  function showGhost(tab, x) {
+    ghostX = x;
+    if (ghostTab === tab) return;
+    if (!ghost) {
+      ghost = document.createElement('div');
+      ghost.className = 'swipe-ghost';
+      ghost.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(ghost);
+    }
+    ghostTab = tab;
+    ghost.innerHTML = `<div class="app"><header class="lhead"><h1 class="ltitle">${esc(titleOf(tab))}</h1><button class="avatar" type="button" tabindex="-1">${esc(S.as.slice(0, 1))}</button></header><main>${pageOf(tab)}</main></div>`;
+  }
+  function follow(dx) {
+    const tab = dx ? TABS[TABS.indexOf(S.tab) + (dx < 0 ? 1 : -1)] : '';
+    if (tab) showGhost(tab, dx < 0 ? width : -width); else dropGhost();
+    shownX = tab || !dx ? dx : dx * RUBBER; // 前後沒有頁面了：拉得動但有阻力
+    mark(tab && Math.abs(dx) > width / 2 ? tab : S.tab);
+    if (!frame) frame = requestAnimationFrame(paint);
+  }
+  function finish(tab) {
+    settling = false; swiping = false;
+    document.body.classList.remove('swiping');
+    page.style.transition = page.style.transform = page.style.willChange = '';
+    shownX = 0;
+    if (tab) goTab(tab);
+    else { mark(S.tab); if (swipeDirty) render(); }
+    swipeDirty = false;
+    dropGhost();
+  }
+  // 放開後滑到位：手速快就快一點，慢慢放就用固定的時間
+  function settle(tab, toX, v) {
+    settling = true;
+    mark(tab || S.tab);
+    const dist = Math.abs(toX - shownX);
+    if (dist < 1 || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) { finish(tab); return; }
+    const ms = Math.round(Math.min(300, Math.max(150, dist / Math.max(Math.abs(v), dist / 280))));
+    const tr = `transform ${ms}ms ${EASE}`;
+    page.style.transition = tr;
+    if (ghost) ghost.style.transition = tr;
+    shownX = toX;
+    paint();
+    let done = false;
+    const end = () => { if (done) return; done = true; page.removeEventListener('transitionend', onEnd); finish(tab); };
+    const onEnd = ev => { if (ev.target === page) end(); };
+    page.addEventListener('transitionend', onEnd);
+    setTimeout(end, ms + 80);
+  }
   document.addEventListener('touchstart', ev => {
-    on = false;
-    if (!wrap.hidden || !S.loaded || ev.touches.length !== 1) return;
+    touch = null;
+    if (settling || !wrap.hidden || !S.loaded || ev.touches.length !== 1) return;
     const t = ev.touches[0];
-    if (t.clientX < 24 || t.clientX > window.innerWidth - 24) return;
-    sx = t.clientX; sy = t.clientY; st = Date.now(); on = true;
+    if (t.clientX < EDGE || t.clientX > window.innerWidth - EDGE) return;
+    touch = { id: t.identifier, x: t.clientX, y: t.clientY, on: false, log: [] };
   }, { passive: true });
-  document.addEventListener('touchend', ev => {
+  document.addEventListener('touchmove', ev => {
+    if (!touch) return;
+    const t = [...ev.touches].find(x => x.identifier === touch.id);
+    if (!t) return;
+    let dx = t.clientX - touch.x;
+    if (!touch.on) {
+      const dy = t.clientY - touch.y;
+      if (Math.abs(dx) < SLOP && Math.abs(dy) < SLOP) return;
+      if (Math.abs(dx) <= Math.abs(dy) * 1.2 || !ev.cancelable) { touch = null; return; } // 上下捲動，交給瀏覽器
+      touch.on = true; touch.x = t.clientX; dx = 0; // 從這裡開始算，畫面不會突然跳一下
+      width = window.innerWidth; swiping = true;
+      document.body.classList.add('swiping');
+      page.style.willChange = 'transform';
+    }
+    ev.preventDefault();
+    touch.log.push([ev.timeStamp, t.clientX]);
+    if (touch.log.length > 8) touch.log.shift();
+    follow(dx);
+  }, { passive: false });
+  function release(ev) {
+    if (!touch || [...ev.touches].some(x => x.identifier === touch.id)) return;
+    const { on, log } = touch;
+    touch = null;
     if (!on) return;
-    on = false;
-    const t = ev.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
-    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 2 || Date.now() - st > 800) return;
-    const i = TABS.indexOf(S.tab) + (dx < 0 ? 1 : -1);
-    if (i >= 0 && i < TABS.length) goTab(TABS[i], dx < 0 ? 'next' : 'prev');
-  }, { passive: true });
+    if (frame) { cancelAnimationFrame(frame); frame = 0; }
+    // 放開前的手速（像素／毫秒）；停住一下才放開就當作 0
+    const last = log[log.length - 1], first = log.find(s => last[0] - s[0] <= 100) || last;
+    const v = ev.timeStamp - last[0] > 80 || last[0] <= first[0] ? 0 : (last[1] - first[1]) / (last[0] - first[0]);
+    const tab = ghostTab, d = shownX;
+    const go = ev.type !== 'touchcancel' && !!tab && (Math.abs(v) > .35 ? (v < 0) === (d < 0) : Math.abs(d) > width * .3);
+    settle(go ? tab : '', go ? (d < 0 ? -width : width) : 0, v);
+  }
+  document.addEventListener('touchend', release, { passive: true });
+  document.addEventListener('touchcancel', release, { passive: true });
 })();
 // 從主畫面打開時沒有瀏覽器的重新整理：在最上面往下拉就更新（在瀏覽器裡就用瀏覽器自己的下拉重新整理）
 (() => {
