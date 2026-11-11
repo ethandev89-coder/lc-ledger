@@ -113,6 +113,7 @@ h1, h2, p { margin: 0; }
 .ps b { color: var(--blue); font-weight: 400; }
 .pa { font-size: 18px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .prow .btn-sm { flex: none; }
+.grp-b.ntcard { padding: 0 18px 12px; border-radius: 16px; }
 .link { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; margin-top: 4px; padding: 0; border: 0; background: none; color: var(--blue); font-size: 15px; cursor: pointer; }
 .row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 .pos { color: var(--green-t); }
@@ -658,11 +659,13 @@ function vLedger() {
   // 同一個網址有好幾隻角色：最上面寫現在用哪一隻，點一下就能換
   if (multi) h += `<button class="asbar" type="button" data-act="me">現在用 <b>${esc(A)}</b> 記帳<span class="sw">切換</span>${CHEV}</button>`;
   const head = pay && recv ? (net < 0 ? '收支相抵後，你要給' : net > 0 ? '收支相抵後，別人要給你' : '收支相抵後剛好打平') : pay ? '你總共要給' : recv ? '總共要給你' : '天幣已經結清';
-  h += `<section class="hero" aria-label="我的帳"><p class="k">${head}</p><p class="n ${cls(net)}">${money(Math.abs(net), 'tb')}<small>天幣</small></p>`;
+  // 天幣一張卡；台幣另外一張卡，有台幣要結的才出現。一張卡只有一種錢
+  const tbRows = rows.filter(r => r.tb), ntRows = rows.filter(r => r.nt);
+  h += `<section class="hero" aria-label="天幣"><p class="k">${head}</p><p class="n ${cls(net)}">${money(Math.abs(net), 'tb')}<small>天幣</small></p>`;
   if (pay && recv) h += `<p class="nt">你要給 <b class="neg">${money(pay, 'tb')}</b> · 別人要給你 <b class="pos">${money(recv, 'tb')}</b></p>`;
-  if (rows.some(r => r.nt)) h += `<p class="nt">台幣${ntNet < 0 ? `：你要給 <b class="neg">${money(-ntNet, 'nt')}</b>` : ntNet > 0 ? `：別人要給你 <b class="pos">${money(ntNet, 'nt')}</b>` : '剛好打平'}</p>`;
-  if (rows.length) h += `<div class="plist">${rows.map(prow).join('')}</div>`;
+  if (tbRows.length) h += `<div class="plist">${tbRows.map(r => prow(r.y, r.tb, 'tb')).join('')}</div>`;
   h += '</section>';
+  if (ntRows.length) h += `<div class="grp"><div class="grp-h">台幣</div><div class="grp-b ntcard">${ntRows.map(r => prow(r.y, r.nt, 'nt')).join('')}</div>${ntRows.length > 1 ? `<div class="grp-f">合計：${ntNet < 0 ? `你要給 ${money(-ntNet, 'nt')}` : ntNet > 0 ? `別人要給你 ${money(ntNet, 'nt')}` : '剛好打平'}</div>` : ''}</div>`;
   const links = [];
   const pm = S.entries.filter(waitingMe), po = S.entries.filter(waitingOthers);
   if (pm.length) links.push(`<button class="cell tap ic-row" type="button" data-act="pend" data-who="me">${ico('check', 'orange')}<span class="main"><span class="t"><b>等你同意</b></span></span><span class="cnt">${pm.length}</span>${CHEV}</button>`);
@@ -678,16 +681,13 @@ function vLedger() {
   h += `<p class="foot">${S.admin ? '你記的馬上算。別人記的如果對你不利，要你同意才算進金額。' : '會讓別人要多給或少收的，要對方同意才算進金額；其他的記下就算數。'}記錯了就到「紀錄」點那一筆。${rows.length > 1 ? '每一隻角色的錢分開算、各自結清；最上面的大字只是合計，轉帳時還是每一隻各自按「我轉了」或「我收到了」。' : ''}</p>`;
   return h;
 }
-// 跟某一隻角色之間的帳：一行（點左邊看明細，右邊是「我轉了／我收到了」）
-function prow({ y, tb, nt }) {
-  const main = tb || nt, cur = tb ? 'tb' : 'nt';
-  const dir = (tb ? '' : '台幣') + (main < 0 ? '你要給' : '要給你');
-  const extra = tb && nt ? `台幣${nt > 0 ? '要給你' : '你要給'} ${money(Math.abs(nt), 'nt')}` : '';
-  const paying = main < 0 ? pendRepay(S.as, y, cur) : 0, getting = main > 0 ? pendRepay(y, S.as, cur) : 0;
-  const btn = Math.abs(main) <= paying + getting ? '' : main < 0
-    ? `<button class="btn btn-fill btn-sm" type="button" data-act="settle" data-dir="pay" data-with="${esc(y)}">我轉了</button>`
-    : `<button class="btn btn-tint btn-sm" type="button" data-act="settle" data-dir="recv" data-with="${esc(y)}">我收到了</button>`;
-  return `<div class="prow"><button class="pmain" type="button" data-act="calc" data-with="${esc(y)}"><span class="pn">${esc(y)}</span><span class="ps">${esc(dir)}${extra ? ' · ' + esc(extra) : ''} · <b>明細 ›</b>${paying ? `<span class="pw">已轉 ${money(paying, cur)}，等對方同意</span>` : getting ? `<span class="pw">對方說已轉 ${money(getting, cur)}，等你同意</span>` : ''}</span></button><span class="pa ${cls(main)}">${money(Math.abs(main), cur)}</span>${btn}</div>`;
+// 跟某一隻角色之間、某一種錢的帳：一行（點左邊看明細，右邊是「我轉了／我收到了」，只管這一種錢）
+function prow(y, v, cur) {
+  const paying = v < 0 ? pendRepay(S.as, y, cur) : 0, getting = v > 0 ? pendRepay(y, S.as, cur) : 0;
+  const btn = Math.abs(v) <= paying + getting ? '' : v < 0
+    ? `<button class="btn btn-fill btn-sm" type="button" data-act="settle" data-dir="pay" data-with="${esc(y)}" data-cur="${cur}">我轉了</button>`
+    : `<button class="btn btn-tint btn-sm" type="button" data-act="settle" data-dir="recv" data-with="${esc(y)}" data-cur="${cur}">我收到了</button>`;
+  return `<div class="prow"><button class="pmain" type="button" data-act="calc" data-with="${esc(y)}"><span class="pn">${esc(y)}</span><span class="ps">${v < 0 ? '你要給' : '要給你'} · <b>明細 ›</b>${paying ? `<span class="pw">已轉 ${money(paying, cur)}，等對方同意</span>` : getting ? `<span class="pw">對方說已轉 ${money(getting, cur)}，等你同意</span>` : ''}</span></button><span class="pa ${cls(v)}">${money(Math.abs(v), cur)}</span>${btn}</div>`;
 }
 function orderCell(o) {
   const u = unitOf(o.item), agent = o.to[0], buyer = o.from, mf = v => money(v, o.cur), agentMe = agent === S.as;
@@ -1336,7 +1336,7 @@ document.addEventListener('click', ev => {
   else if (a === 'o-end') openSheet({ k: 'oend', o: findE(b.dataset.id) });
   else if (a === 'settle') {
     const A = S.as, y = b.dataset.with, pay = b.dataset.dir === 'pay';
-    const cands = ['tb', 'nt'].map(c => ({ c, v: bal(A, y, c) })).filter(x => (pay ? x.v < 0 : x.v > 0))
+    const cands = (b.dataset.cur ? [b.dataset.cur] : ['tb', 'nt']).map(c => ({ c, v: bal(A, y, c) })).filter(x => (pay ? x.v < 0 : x.v > 0))
       .map(x => (pay ? { from: A, to: y, amt: -x.v - pendRepay(A, y, x.c), cur: x.c } : { from: y, to: A, amt: x.v - pendRepay(y, A, x.c), cur: x.c })).filter(x => x.amt > 0);
     if (cands.length) openSheet({ k: 'settle', cands, sel: 0 });
   }
