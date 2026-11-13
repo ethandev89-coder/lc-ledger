@@ -173,6 +173,7 @@ button.cell { border: 0; background: none; text-align: left; cursor: pointer; }
 .segc input:focus-visible + span { outline: 2px solid var(--blue); outline-offset: 1px; }
 .pick .k { flex: none; width: 5.2em; font-size: 15px; color: var(--label-2); }
 .pick .segc { flex: 1; min-width: 0; }
+.segc.many { grid-auto-flow: row; grid-template-columns: repeat(3, 1fr); row-gap: 2px; }
 
 .field .k { flex: none; min-width: 4.5em; }
 .field input { flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--label); font: inherit; font-size: 17px; outline: none; }
@@ -627,7 +628,7 @@ const CHEV = '<svg class="chev" viewBox="0 0 8 14" width="8" height="14" aria-hi
 const TYPE_UI = { loan: ['up', 'blue'], repay: ['down', 'green'], buy: ['bag', 'purple'], order: ['cart', 'indigo'], obuy: ['cart', 'indigo'], deliver: ['box', 'indigo'], oend: ['check', 'indigo'], move: ['box', 'orange'], split: ['gem', 'orange'] };
 const group = (head, body, foot) => `<div class="grp">${head ? `<div class="grp-h">${head}</div>` : ''}<div class="grp-b">${body}</div>${foot ? `<div class="grp-f">${foot}</div>` : ''}</div>`;
 const kv = (k, v, vc = '') => `<div class="cell kv"><span class="k">${esc(k)}</span><span class="v ${vc}">${esc(v)}</span></div>`;
-const seg = (name, list, sel, lab = x => x) => `<div class="segc" role="radiogroup">${list.map((p, i) => `<label><input type="radio" name="${name}" id="${name}-${i}" value="${esc(p)}"${p === sel ? ' checked' : ''}><span>${esc(lab(p))}</span></label>`).join('')}</div>`;
+const seg = (name, list, sel, lab = x => x) => `<div class="segc${list.length > 4 ? ' many' : ''}" role="radiogroup">${list.map((p, i) => `<label><input type="radio" name="${name}" id="${name}-${i}" value="${esc(p)}"${p === sel ? ' checked' : ''}><span>${esc(lab(p))}</span></label>`).join('')}</div>`;
 // 名字後面的小註記：（你）、（你的角色）；別人的角色關係不顯示
 const tagOf = p => p === S.as ? '（你）' : isMe(p) ? '（你的角色）' : '';
 const checks = (name, list, sel) => list.map((p, i) => `<label class="cell chk"><input type="checkbox" name="${name}" id="${name}-${i}" value="${esc(p)}"${sel.includes(p) ? ' checked' : ''}><span class="t">${esc(p)}${tagOf(p)}</span><span class="mark" aria-hidden="true">✓</span></label>`).join('');
