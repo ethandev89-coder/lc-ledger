@@ -772,13 +772,15 @@ function logCell(x) {
 
 /* ---------- 新增：選單和表單 ---------- */
 const MENU = [
-  ['錢', [['loan', '借錢', '天幣或台幣，借出借入都能記', 'up', 'blue'], ['repay', '還錢', '你還對方錢，或對方還你錢', 'down', 'green']]],
+  ['錢', [['loan', '借錢', '你跟別人借', 'down', 'blue'], ['lend', '借給別人', '你借錢給別人', 'up', 'blue'], ['repay', '還錢', '你還錢給別人', 'up', 'green']], '別人還你錢：在首頁按那個人旁邊的「我收到了」'],
   ['打寶', [['loot', '新增寶物', '打到東西，還沒賣', 'gem', 'orange'], ['sell', '賣掉分錢', '打到直接賣掉，不用先新增', 'gem', 'orange']]],
   ['幫忙收東西', [['order', '代購', '先給錢，請人幫忙收', 'cart', 'indigo'], ['buy', '代墊', '先出錢幫人收，之後再還', 'bag', 'purple']]],
 ];
 const LABELS = {
-  loan:  { title: '借錢', from: '誰借出', to: '借給誰', amt: '借多少' },
-  repay: { title: '還錢', from: '誰還錢', to: '還給誰', amt: '還多少' },
+  // me：表單只選對方，自己那一邊固定是現在用的這一隻（'to' 自己是收錢的，'from' 自己是出錢的）；as：存成哪一種帳
+  loan:  { title: '借錢', from: '跟誰借', to: '借給誰', amt: '借多少', me: 'to' },
+  lend:  { title: '借給別人', from: '誰借出', to: '借給誰', amt: '借多少', me: 'from', as: 'loan' },
+  repay: { title: '還錢', from: '誰還錢', to: '還給誰', amt: '還多少', me: 'from' },
   order: { title: '代購', from: '誰給錢', to: '請誰收', amt: '給了多少', item: '要收什麼' },
   buy:   { title: '代墊', from: '誰先出錢', to: '幫誰收', amt: '花了多少', item: '收了什麼' },
   loot:  { title: '新增寶物', from: '在誰身上', to: '誰有份', multi: true, item: '打到什麼', noMoney: true },
@@ -793,6 +795,7 @@ function newDraft(type) {
   const lastLoot = S.items.filter(i => i.kind === 'loot' && i.status !== 'void' && i.owners.includes(A)).pop();
   const owners = lastLoot ? NAMES.filter(p => p === A || lastLoot.owners.includes(p)) : [A];
   let from = A, to = L.multi ? owners : (two ? [other] : []);
+  if (L.me === 'to') { from = two ? other : ''; to = [A]; }
   if (type === 'order' && two) { from = other; to = [A]; } // 通常是對方把錢給你
   return { from, to, cur: 'tb', amt: '', item: '', note: '', keep: true, qty: '1' };
 }
@@ -815,7 +818,10 @@ function formHTML(ctx) {
   if (type === 'isell') h += `<p class="foot tight">有份：${esc(ctx.item.owners.join('、'))}（新增時填的），賣掉的錢照這個分。</p>`;
   if (type === 'ikeep') h += `<p class="foot tight">有份：${esc(ctx.item.owners.join('、'))}。留下的人照講好的價錢，把錢分給其他有份的人。</p>`;
   if (type === 'imove') h += `<p class="foot tight">現在在 ${esc(ctx.item.holder)} 身上。轉過去之後，賣掉的錢由新拿著的人分給有份的人。</p>`;
-  if (L.to && !L.multi) {
+  if (L.me) {
+    const others = NAMES.filter(p => p !== S.as);
+    h += group('', L.me === 'to' ? `<div class="cell pick"><span class="k">${L.from}</span>${seg('from', others, d.from)}</div>` : `<div class="cell pick"><span class="k">${L.to}</span>${seg('to', others, d.to[0] || '')}</div>`);
+  } else if (L.to && !L.multi) {
     h += group('', `<div class="cell pick"><span class="k">${L.from}</span>${seg('from', fromList, d.from)}</div><div class="cell pick"><span class="k">${L.to}</span>${seg('to', NAMES, d.to[0] || '')}</div>`);
   } else {
     h += group(L.from, `<div class="cell">${seg('from', fromList, d.from)}</div>`);
@@ -834,8 +840,9 @@ function readForm(ctx) {
   const f = sheet.querySelector('#f'), d = ctx.d;
   const pick = n => [...f.querySelectorAll(`input[name="${n}"]:checked`)].map(x => x.value);
   const g = id => f.querySelector('#' + id);
-  d.from = pick('from')[0] || '';
-  if (LABELS[ctx.type].to) d.to = pick('to');
+  const L = LABELS[ctx.type];
+  d.from = L.me === 'from' ? S.as : (pick('from')[0] || '');
+  if (L.to) d.to = L.me === 'to' ? [S.as] : pick('to');
   const k = pick('cur')[0]; if (k) d.cur = k;
   if (g('f-item')) d.item = g('f-item').value.trim();
   if (g('f-amt')) d.amt = g('f-amt').value;
@@ -866,7 +873,7 @@ function draftEval(ctx) {
   else if (L.multi) e = { type: 'split', from: d.from, to: d.to.slice(), qty };
   else {
     if (d.to[0] === d.from) return { need: '兩邊不能是同一個角色' };
-    e = { type, from: d.from, to: [d.to[0]] };
+    e = { type: L.as || type, from: d.from, to: [d.to[0]] };
   }
   Object.assign(e, { amt: parseAmt(d.amt, d.cur), cur: d.cur, item });
   if (!e.amt) return { need: `還沒填：${L.amt}` };
@@ -981,7 +988,7 @@ function sheetHTML(ctx) {
   const me = S.as;
   switch (ctx.k) {
     case 'pick':
-      return shell('新增', MENU.map(([hd, rows]) => group(hd, rows.map(([t, l, s, icn, col]) => `<button class="cell tap ic-row" type="button" data-act="pick" data-type="${t}">${ico(icn, col)}<span class="main"><span class="t">${l}</span><span class="s">${s}</span></span>${CHEV}</button>`).join(''))).join(''));
+      return shell('新增', MENU.map(([hd, rows, ft]) => group(hd, rows.map(([t, l, s, icn, col]) => `<button class="cell tap ic-row" type="button" data-act="pick" data-type="${t}">${ico(icn, col)}<span class="main"><span class="t">${l}</span><span class="s">${s}</span></span>${CHEV}</button>`).join(''), ft)).join(''));
     case 'form': {
       const L = LABELS[ctx.type];
       return shell(ctx.item ? `${esc(ctx.item.name)}・${L.title}` : L.title, formHTML(ctx), { right: '記下', rightId: 'f-ok', form: true });
