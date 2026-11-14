@@ -487,10 +487,11 @@ const salesOf = i => S.entries.filter(e => e.itemId === i.id && e.type === 'spli
 const leftOf = i => i.qty - salesOf(i).reduce((s, e) => s + (e.qty || 1), 0);
 const itemOpen = i => i.status !== 'void' && (i.kind === 'loot' ? leftOf(i) > 0 : i.status === 'open');
 function soldSummary(i) {
-  const u = unitOf(i.name), ss = salesOf(i), sold = ss.filter(e => !e.kept), kept = ss.filter(e => e.kept);
+  const u = unitOf(i.name), ss = salesOf(i), sold = ss.filter(e => !e.kept && !e.scrap), kept = ss.filter(e => e.kept), scr = ss.filter(e => e.scrap);
   const parts = [];
   if (sold.length) parts.push(`賣了 ${sold.reduce((s, e) => s + (e.qty || 1), 0)} ${u}，${money(sold.reduce((s, e) => s + e.amt, 0), sold[0].cur)}`);
   if (kept.length) parts.push(`留了 ${kept.reduce((s, e) => s + (e.qty || 1), 0)} ${u}自己用`);
+  if (scr.length) parts.push(`報廢 ${scr.reduce((s, e) => s + (e.qty || 1), 0)} ${u}`);
   return parts.join(' · ') || '已處理';
 }
 const orderLocked = e => e.type === 'order' && (ofType(e, 'obuy').length || ofType(e, 'deliver').length || endOf(e));
@@ -550,7 +551,7 @@ function pendSay(e) {
 }
 
 /* ---------- 文字 ---------- */
-const typeLabel = e => ({ loan: '借錢', repay: '還錢', buy: '代墊', order: '代購', obuy: '收了一批', deliver: '交貨', oend: '代購結算', move: '轉給別人', split: e.kept ? '留著自己用' : '分寶' })[e.type];
+const typeLabel = e => ({ loan: '借錢', repay: '還錢', buy: '代墊', order: '代購', obuy: '收了一批', deliver: '交貨', oend: '代購結算', move: '轉給別人', split: e.scrap ? '報廢' : e.kept ? '留著自己用' : '分寶' })[e.type];
 function title(e) {
   const q = e.qty > 1 ? ` ×${e.qty}` : '', u = unitOf(e.item || '');
   switch (e.type) {
@@ -562,7 +563,7 @@ function title(e) {
     case 'deliver': return `${e.from} 交給 ${e.to[0]}「${e.item}」${e.qty} ${u}`;
     case 'move': return `${e.from} 把「${e.item}」轉給 ${e.to[0]}`;
     case 'oend': return e.amt ? `「${e.item}」代購結算：${e.to[0]} 要${e.refund ? '退' : '補'} ${e.from}` : `「${e.item}」代購結算：剛好用完`;
-    default: return e.kept ? `${e.from} 留著「${e.item}」${q}自己用` : `${e.from} 賣掉「${e.item}」${q}`;
+    default: return e.scrap ? `${e.from} 報廢「${e.item}」${q}` : e.kept ? `${e.from} 留著「${e.item}」${q}自己用` : `${e.from} 賣掉「${e.item}」${q}`;
   }
 }
 function effect(e, full) {
@@ -583,6 +584,7 @@ function effect(e, full) {
       return o ? `給了 ${money(o.amt, e.cur)}，花了 ${money(o.amt + (e.refund ? -e.amt : e.amt), e.cur)}` : '';
     }
     case 'split': {
+      if (e.scrap) return '不賣也不分錢，收進已處理';
       const sh = shares(e), others = e.to.filter(p => p !== e.from);
       const head = `${e.kept ? '講好' : '賣'} ${f(e.amt)}`;
       if (!others.length) return head;
@@ -601,6 +603,7 @@ function myView(e, me) {
     case 'repay': return im(e.from) ? `你還了 ${e.to[0]} ${f(e.amt)}` : im(e.to[0]) ? `${e.from} 還了你 ${f(e.amt)}` : '';
     case 'buy': return im(e.from) ? `${e.to[0]} 欠你 ${f(e.amt)}（你代墊的）` : im(e.to[0]) ? `你欠 ${e.from} ${f(e.amt)}（對方代墊的）` : '';
     case 'split': {
+      if (e.scrap) return '';
       const sh = shares(e);
       if (im(e.from)) {
         const others = e.to.filter(p => !im(p));
@@ -780,9 +783,9 @@ const whenOf = x => (x.seed ? '補記' : hm(x.t));
 function logCell(x) {
   const me = S.as;
   if (x.k === 'e') {
-    const e = x.e, [icn, col] = TYPE_UI[e.type];
+    const e = x.e, [icn, col] = e.scrap ? ['gem', 'gray'] : TYPE_UI[e.type];
     const sub = (waitingMe(e) && !e.voidReq ? pendSay(e) : '') || myView(e, me) || effect(e, false) || (e.note ? `備註：${e.note}` : '');
-    const r = e.type === 'move' ? '' : e.type === 'deliver' ? `<span class="r dim">${e.qty} ${unitOf(e.item)}</span>`
+    const r = e.type === 'move' || e.scrap ? '' : e.type === 'deliver' ? `<span class="r dim">${e.qty} ${unitOf(e.item)}</span>`
       : `<span class="r${e.type === 'order' || e.type === 'obuy' || isPending(e) ? ' dim' : ''}">${money(e.amt, e.cur)}</span>`;
     const bd = badgesFor(x, !!e.voided);
     return `<button class="cell tap ic-row lrow${e.voided ? ' void' : ''}" type="button" data-act="rec" data-id="${e.id}">${ico(icn, col)}<span class="main"><span class="t">${esc(title(e))}</span><span class="s">${esc(whenOf(e) + (sub ? ' · ' + sub : ''))}</span>${bd ? `<span class="bdg">${bd}</span>` : ''}</span>${r}</button>`;
@@ -812,6 +815,7 @@ const LABELS = {
   sell:  { title: '賣掉分錢', from: '錢在誰身上', to: '誰有份', multi: true, amt: '賣出的總價', item: '賣了什麼' },
   isell: { title: '賣掉了', from: '錢在誰身上', to: null, amt: '這次賣出的總價' }, // 誰有份沿用新增寶物時填的
   ikeep: { title: '留著自己用', from: '誰要留', to: null, amt: '講好的總價' },
+  iscrap: { title: '報廢', from: '在誰身上', to: null, noMoney: true }, // 人照物品，不用選
   imove: { title: '轉給別人', from: '轉給誰', to: null, noMoney: true },
 };
 function newDraft(type) {
@@ -828,8 +832,8 @@ function qtyInfo(ctx) {
   const t = ctx.type, it = ctx.item;
   const max = it ? leftOf(it) : 999;
   const u = it ? unitOf(it.name) : '個';
-  const show = t === 'loot' || t === 'sell' || ((t === 'isell' || t === 'ikeep') && max > 1);
-  const label = t === 'loot' ? '數量' : t === 'sell' ? '賣了幾個' : t === 'isell' ? `賣幾${u}` : `留幾${u}`;
+  const show = t === 'loot' || t === 'sell' || ((t === 'isell' || t === 'ikeep' || t === 'iscrap') && max > 1);
+  const label = t === 'loot' ? '數量' : t === 'sell' ? '賣了幾個' : t === 'isell' ? `賣幾${u}` : t === 'iscrap' ? `報廢幾${u}` : `留幾${u}`;
   return { show, max, u, label };
 }
 function formHTML(ctx) {
@@ -842,8 +846,11 @@ function formHTML(ctx) {
   }
   if (type === 'isell') h += `<p class="foot tight">有份：${esc(ctx.item.owners.join('、'))}（新增時填的），賣掉的錢照這個分。</p>`;
   if (type === 'ikeep') h += `<p class="foot tight">有份：${esc(ctx.item.owners.join('、'))}。留下的人照講好的價錢，把錢分給其他有份的人。</p>`;
+  if (type === 'iscrap') h += `<p class="foot tight">在 ${esc(ctx.item.holder)} 身上，有份：${esc(ctx.item.owners.join('、'))}。報廢就是不賣也不分錢，收進「已處理」。</p>`;
   if (type === 'imove') h += `<p class="foot tight">現在在 ${esc(ctx.item.holder)} 身上。轉過去之後，賣掉的錢由新拿著的人分給有份的人。</p>`;
-  if (L.me) {
+  if (type === 'iscrap') {
+    // 報廢：人照那件物品，不用選
+  } else if (L.me) {
     const others = NAMES.filter(p => p !== S.as);
     h += group('', L.me === 'to' ? `<div class="cell pick"><span class="k">${L.from}</span>${seg('from', others, d.from)}</div>` : `<div class="cell pick"><span class="k">${L.to}</span>${seg('to', others, d.to[0] || '')}</div>`);
   } else if (L.to && !L.multi) {
@@ -866,7 +873,7 @@ function readForm(ctx) {
   const pick = n => [...f.querySelectorAll(`input[name="${n}"]:checked`)].map(x => x.value);
   const g = id => f.querySelector('#' + id);
   const L = LABELS[ctx.type];
-  d.from = L.me === 'from' ? S.as : (pick('from')[0] || '');
+  d.from = ctx.type === 'iscrap' ? ctx.item.holder : L.me === 'from' ? S.as : (pick('from')[0] || '');
   if (L.to) d.to = L.me === 'to' ? [S.as] : pick('to');
   const k = pick('cur')[0]; if (k) d.cur = k;
   if (g('f-item')) d.item = g('f-item').value.trim();
@@ -890,6 +897,10 @@ function draftEval(ctx) {
   if (type === 'imove') {
     const left = leftOf(ctx.item);
     return { ok: true, qty, e: { type: 'move', from: ctx.item.holder, to: [d.from], amt: 0, cur: 'tb', item }, prev: `「${item}」${left > 1 ? `剩下的 ${left} ${Q.u}` : ''}改成在 ${d.from} 身上。誰有份不變，也不會動到錢。` };
+  }
+  if (type === 'iscrap') {
+    const left = leftOf(ctx.item);
+    return { ok: true, qty, e: { type: 'split', scrap: true, from: ctx.item.holder, to: ctx.item.owners.slice(), qty, amt: 0, cur: 'tb', item }, prev: `「${item}」報廢 ${qty} ${Q.u}，不分錢，收進已處理${left > qty ? `（還剩 ${left - qty} ${Q.u}）` : ''}。` };
   }
   if (type === 'loot') return { ok: true, qty, prev: `「${item}」${qty > 1 ? ` ×${qty}` : ''} 放進物品清單，在 ${d.from} 身上，${d.to.length} 人有份。賣掉時再分錢。` };
   let e;
@@ -1038,28 +1049,28 @@ function sheetHTML(ctx) {
       if (open) rows.push(kv('在誰身上', i.holder));
       rows.push(kv('誰記的', i.seed ? `${i.by}（補記）` : `${i.by} · ${md(i.t)} ${hm(i.t)}`));
       b += group('', rows.join(''));
-      if (ss.length) b += group('賣出紀錄', ss.map(e => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${e.kept ? `${esc(e.from)} 留著用` : '賣掉'} ${e.qty || 1} ${u}</span><span class="s">${e.kept ? '講好的價錢' : `錢在 ${esc(e.from)} 身上`}</span></span><span class="s">${money(e.amt, e.cur)}</span>${CHEV}</button>`).join(''));
+      if (ss.length) b += group('處理紀錄', ss.map(e => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${e.scrap ? '報廢' : e.kept ? `${esc(e.from)} 留著用` : '賣掉'} ${e.qty || 1} ${u}</span><span class="s">${e.scrap ? '不分錢' : e.kept ? '講好的價錢' : `錢在 ${esc(e.from)} 身上`}</span></span><span class="s">${e.scrap ? '' : money(e.amt, e.cur)}</span>${CHEV}</button>`).join(''));
       const mvs = S.entries.filter(e => e.itemId === i.id && e.type === 'move' && !e.voided);
       if (mvs.length) b += group('轉手紀錄', mvs.map(e => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${esc(e.from)} → ${esc(e.to[0])}</span><span class="s">${md(e.t)} ${hm(e.t)} · ${esc(e.by)} 記的</span></span>${CHEV}</button>`).join(''));
       const acts = [];
-      if (open && loot && mineItem(i)) acts.push(`<button class="cell tap act" type="button" data-act="sell" data-item="${i.id}">賣掉了</button>`, `<button class="cell tap act" type="button" data-act="keep" data-item="${i.id}">留著自己用</button>`, `<button class="cell tap act" type="button" data-act="move" data-item="${i.id}">轉給別人</button>`);
+      if (open && loot && mineItem(i)) acts.push(`<button class="cell tap act" type="button" data-act="sell" data-item="${i.id}">賣掉了</button>`, `<button class="cell tap act" type="button" data-act="keep" data-item="${i.id}">留著自己用</button>`, `<button class="cell tap act" type="button" data-act="move" data-item="${i.id}">轉給別人</button>`, `<button class="cell tap act" type="button" data-act="scrap" data-item="${i.id}">報廢</button>`);
       if (open && !loot && mineItem(i)) acts.push(`<button class="cell tap act" type="button" data-act="hand" data-item="${i.id}">已交給 ${esc(i.owners[0])}</button>`);
-      if (acts.length) b += group('', acts.join(''), open && loot ? '留著自己用：有份的人想自己用，先講好價錢，就當作用這個價錢買下，錢分給其他有份的人。轉給別人：換成別人拿著，之後由對方賣，不會動到錢。' : '');
+      if (acts.length) b += group('', acts.join(''), open && loot ? '留著自己用：有份的人想自己用，先講好價錢，就當作用這個價錢買下，錢分給其他有份的人。轉給別人：換成別人拿著，之後由對方賣，不會動到錢。報廢：不值錢了或用不到，不賣也不分錢，收進「已處理」。' : '');
       if (canVoidItem(i)) b += group('', `<button class="cell tap danger" type="button" data-act="void" data-item="${i.id}">作廢這件物品</button>`);
       return shell(esc(i.name), b, { left: '', right: '完成' });
     }
     case 'rec': {
-      const e = ctx.e, [icn, col] = TYPE_UI[e.type], mv = myView(e, me), eff = effect(e, true);
+      const e = ctx.e, [icn, col] = e.scrap ? ['gem', 'gray'] : TYPE_UI[e.type], mv = myView(e, me), eff = effect(e, true);
       let b = `<div class="dhead">${ico(icn, col)}<div class="main"><p class="dt">${esc(title(e))}</p><p class="ds">${esc(typeLabel(e))}</p></div></div>`;
       const rows = [];
-      rows.push(e.type === 'move' ? kv('物品', e.item, 'strong') : e.type === 'deliver' ? kv('數量', `${e.qty} ${unitOf(e.item)}`, 'strong') : kv(e.type === 'order' ? '代購金' : '金額', moneyFull(e.amt, e.cur), 'strong'));
+      rows.push(e.type === 'move' ? kv('物品', e.item, 'strong') : e.type === 'deliver' || e.scrap ? kv('數量', `${e.qty} ${unitOf(e.item)}`, 'strong') : kv(e.type === 'order' ? '代購金' : '金額', moneyFull(e.amt, e.cur), 'strong'));
       if (mv) rows.push(kv('對你來說', mv));
       else if (eff) rows.push(kv('內容', eff));
       if (e.note) rows.push(kv('備註', e.note));
       rows.push(kv('誰記的', e.seed ? `${e.by}（補記）` : `${e.by} · ${md(e.t)} ${hm(e.t)}`));
       if (e.voided) rows.push(kv('狀態', `已作廢：${e.voided.reason}（${e.voided.by} · ${md(e.voided.t)} ${hm(e.voided.t)}）`));
       else if (waitOf(e).length) { const wh = waitingMe(e) ? '等你同意' : `等 ${waitOf(e).join('、')} 同意`; rows.push(kv('狀態', e.voidReq ? `${e.voidReq.by} 想作廢（${e.voidReq.reason}），${wh}` : `${wh}，同意後才算進金額`)); }
-      if (e.log && e.log.length) rows.push(kv('同意紀錄', e.log.map(l => `${l.by} ${l.what}（${md(l.t)} ${hm(l.t)}）`).join('；')));
+      if (e.log && e.log.length) rows.push(kv('變更紀錄', e.log.map(l => `${l.by} ${l.what}（${md(l.t)} ${hm(l.t)}）`).join('；')));
       b += group('', rows.join(''));
       if (waitingMe(e)) b += group('', `<button class="cell tap act" type="button" data-act="agree-yes" data-id="${e.id}">同意</button><button class="cell tap danger" type="button" data-act="agree-no" data-id="${e.id}">不同意</button>`, e.voidReq ? '同意了這筆才會作廢；不同意就維持原樣。' : '同意了才算進金額。不同意要寫原因，這筆會作廢，紀錄還是留著。');
       else if (waitingOthers(e)) b += group('', `<button class="cell tap danger" type="button" data-act="agree-back" data-id="${e.id}">撤回${e.voidReq ? '作廢' : '這筆'}</button>`, '對方還沒同意，撤回不用等對方。');
@@ -1359,6 +1370,9 @@ document.addEventListener('click', ev => {
   } else if (a === 'keep') {
     const it = findI(b.dataset.item);
     openSheet({ k: 'form', type: 'ikeep', item: it, d: { from: it.owners.find(p => p === S.as) || it.owners.find(isMe) || it.owners[0], to: it.owners.slice(), cur: 'tb', amt: '', item: it.name, note: '', keep: false, qty: '1' } });
+  } else if (a === 'scrap') {
+    const it = findI(b.dataset.item);
+    openSheet({ k: 'form', type: 'iscrap', item: it, d: { from: it.holder, to: it.owners.slice(), cur: 'tb', amt: '', item: it.name, note: '', keep: false, qty: String(leftOf(it)) } });
   } else if (a === 'move') {
     const it = findI(b.dataset.item);
     const to = NAMES.find(p => who(p) !== who(it.holder)) || NAMES.find(p => p !== it.holder) || '';
