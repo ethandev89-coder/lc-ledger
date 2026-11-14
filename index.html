@@ -659,13 +659,20 @@ function vLedger() {
   let h = a2hsTip();
   // 同一個網址有好幾隻角色：最上面寫現在用哪一隻，點一下就能換
   if (multi) h += `<button class="asbar" type="button" data-act="me">現在用 <b>${esc(A)}</b> 記帳<span class="sw">切換</span>${CHEV}</button>`;
-  const head = pay && recv ? (net < 0 ? '收支相抵後，你要給' : net > 0 ? '收支相抵後，別人要給你' : '收支相抵後剛好打平') : pay ? '你總共要給' : recv ? '總共要給你' : '天幣已經結清';
+  const head = pay && recv ? (net < 0 ? '收支相抵後，你要給' : net > 0 ? '收支相抵後，別人要給你' : '收支相抵後剛好打平') : pay ? '你總共要給' : '總共要給你';
   // 天幣一張卡；台幣另外一張卡，有台幣要結的才出現。一張卡只有一種錢
+  // 天幣結清時大卡片縮成一行（台幣也結清就一起說）；還沒有任何帳時改成告訴他怎麼開始
   const tbRows = rows.filter(r => r.tb), ntRows = rows.filter(r => r.nt);
-  h += `<section class="hero" aria-label="天幣"><p class="k">${head}</p><p class="n ${cls(net)}">${money(Math.abs(net), 'tb')}<small>天幣</small></p>`;
-  if (pay && recv) h += `<p class="nt">你要給 <b class="neg">${money(pay, 'tb')}</b> · 別人要給你 <b class="pos">${money(recv, 'tb')}</b></p>`;
-  if (tbRows.length) h += `<div class="plist">${tbRows.map(r => prow(r.y, r.tb, 'tb')).join('')}</div>`;
-  h += '</section>';
+  if (pay || recv) {
+    h += `<section class="hero" aria-label="天幣"><p class="k">${head}</p><p class="n ${cls(net)}">${money(Math.abs(net), 'tb')}<small>天幣</small></p>`;
+    if (pay && recv) h += `<p class="nt">你要給 <b class="neg">${money(pay, 'tb')}</b> · 別人要給你 <b class="pos">${money(recv, 'tb')}</b></p>`;
+    if (tbRows.length) h += `<div class="plist">${tbRows.map(r => prow(r.y, r.tb, 'tb')).join('')}</div>`;
+    h += '</section>';
+  } else if (!S.entries.length && !S.items.length) {
+    h += group('', `<div class="cell ic-row">${ico('plus', 'blue')}<span class="main"><span class="t">還沒有帳</span><span class="s">有人跟你借錢、打到寶，按右下角「＋」記下來</span></span></div>`);
+  } else {
+    h += group('', `<div class="cell ic-row">${ico('check', 'green')}<span class="main"><span class="t">${ntRows.length ? '天幣都結清了' : '天幣、台幣都結清了'}</span>${orders.length ? '<span class="s">代購金另外算</span>' : ''}</span></div>`);
+  }
   if (ntRows.length) h += `<div class="grp"><div class="grp-h">台幣</div><div class="grp-b ntcard">${ntRows.map(r => prow(r.y, r.nt, 'nt')).join('')}</div>${ntRows.length > 1 ? `<div class="grp-f">合計：${ntNet < 0 ? `你要給 ${money(-ntNet, 'nt')}` : ntNet > 0 ? `別人要給你 ${money(ntNet, 'nt')}` : '剛好打平'}</div>` : ''}</div>`;
   const links = [];
   const pm = S.entries.filter(waitingMe), po = S.entries.filter(waitingOthers);
