@@ -187,6 +187,8 @@ button.cell { border: 0; background: none; text-align: left; cursor: pointer; }
 .amt-cell .u { flex: none; font-size: 17px; color: var(--label-2); }
 .qchips { display: flex; flex-wrap: wrap; gap: 8px; }
 .qchip { min-height: 34px; padding: 0 12px; border: 0; border-radius: 17px; background: var(--fill); color: var(--label); font-size: 14px; font-weight: 500; cursor: pointer; }
+.qchip.on { background: var(--blue); color: #fff; }
+.qchips.who { margin: 0 0 20px; }
 .chk { cursor: pointer; }
 .chk input { position: absolute; opacity: 0; pointer-events: none; }
 .chk .t { flex: 1; }
@@ -770,8 +772,12 @@ function itemCell(i) {
 
 /* ---------- 畫面：紀錄 ---------- */
 function vLog() {
+  // 最上面一排人名：點了只看跟那個人的每一筆和合計（跟首頁「明細」一樣），結清的人也看得到
+  const me = S.as, people = NAMES.filter(y => y !== me && S.entries.some(e => !e.voided && pairDelta(e, me, y)));
+  if (!people.includes(S.logWith)) S.logWith = '';
+  let h = people.length ? `<div class="qchips who">${['', ...people].map(y => `<button class="qchip${S.logWith === y ? ' on' : ''}" type="button" data-act="logwith" data-with="${esc(y)}">${y ? esc(y) : '全部'}</button>`).join('')}</div>` : '';
+  if (S.logWith) return h + calcBody(me, S.logWith);
   const ev = events();
-  let h = '';
   if (!ev.length) h += group('', '<div class="cell"><span class="s">還沒有紀錄。</span></div>');
   let key = null, buf = [];
   const flush = () => { if (buf.length) h += group(esc(dayLabel(buf[0].t)), buf.map(logCell).join('')); buf = []; };
@@ -1034,6 +1040,18 @@ function pendCard(e) {
     : `<button class="btn btn-no btn-sm" type="button" data-act="agree-back" data-id="${e.id}" data-from="${from}">撤回</button>`;
   return `<div class="cell ocell pcard"><button class="ohead" type="button" data-act="rec" data-id="${e.id}">${ico(icn, col)}<span class="main"><span class="t">${vr ? '作廢「' : ''}${esc(title(e))}${vr ? '」' : ''}</span><span class="s">${esc(pendSay(e))}</span></span><span class="r">${money(e.amt, e.cur)}</span></button><p class="s">${esc(meta)}</p><div class="row">${btns}</div></div>`;
 }
+// 跟某個人的明細：每一筆的加減和合計（明細視窗和紀錄頁的「按人看」共用）；每一筆寫日期時間，補記的寫「補記」
+function calcBody(me, y) {
+  let b = '';
+  const sub = e => { const v = myView(e, me); return (e.seed ? '補記' : `${md(e.t)} ${hm(e.t)}`) + (v ? ' · ' + v : ''); };
+  for (const c of ['tb', 'nt']) {
+    const ps = S.entries.filter(e => !e.voided && e.cur === c).map(e => ({ e, d: pairDelta(e, me, y) })).filter(x => x.d).sort((a, z) => (a.e.t < z.e.t ? 1 : -1));
+    if (!ps.length) continue;
+    const tot = ps.reduce((s, x) => s + x.d, 0);
+    b += group(CUR[c], ps.map(({ e, d }) => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${esc(title(e))}</span><span class="s">${esc(sub(e))}</span></span><span class="r ${cls(d)}">${signed(d, c)}</span>${CHEV}</button>`).join('') + `<div class="cell kv"><span class="k">合計</span><span class="v strong ${cls(tot)}">${signed(tot, c)}</span></div>`, '＋ 是對方要給你的，− 是你要給對方的，合計就是首頁的數字。');
+  }
+  return b;
+}
 function sheetHTML(ctx) {
   const me = S.as;
   switch (ctx.k) {
@@ -1044,14 +1062,7 @@ function sheetHTML(ctx) {
       return shell(ctx.item ? `${esc(ctx.item.name)}・${L.title}` : L.title, formHTML(ctx), { right: '記下', rightId: 'f-ok', form: true });
     }
     case 'calc': {
-      const y = ctx.with;
-      let b = '';
-      for (const c of ['tb', 'nt']) {
-        const ps = S.entries.filter(e => !e.voided && e.cur === c).map(e => ({ e, d: pairDelta(e, me, y) })).filter(x => x.d).sort((a, z) => (a.e.t < z.e.t ? 1 : -1));
-        if (!ps.length) continue;
-        const tot = ps.reduce((s, x) => s + x.d, 0);
-        b += group(CUR[c], ps.map(({ e, d }) => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${esc(title(e))}</span><span class="s">${esc(myView(e, me))}</span></span><span class="r ${cls(d)}">${signed(d, c)}</span>${CHEV}</button>`).join('') + `<div class="cell kv"><span class="k">合計</span><span class="v strong ${cls(tot)}">${signed(tot, c)}</span></div>`, '＋ 是對方要給你的，− 是你要給對方的，合計就是首頁的數字。');
-      }
+      const y = ctx.with, b = calcBody(me, y);
       return shell(`跟 ${esc(y)} 的明細`, b || '<p class="foot">目前沒有欠款。</p>', { left: '', right: '完成' });
     }
     case 'item': {
@@ -1366,6 +1377,7 @@ document.addEventListener('click', ev => {
   if (!b) return;
   const a = b.dataset.act;
   if (a === 'tab') goTab(b.dataset.tab);
+  else if (a === 'logwith') { S.logWith = b.dataset.with; render(); }
   else if (a === 'reload') { if (SH) closeSheet(); S.error = ''; render(); load().then(good => { if (good) toast('帳本已更新'); }); }
   else if (!S.loaded) return;
   else if (a === 'new') { if (b.dataset.type) openForm(b.dataset.type); else openSheet({ k: 'pick' }); }
