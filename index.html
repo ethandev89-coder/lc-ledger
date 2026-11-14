@@ -104,6 +104,7 @@ h1, h2, p { margin: 0; }
 .asbar { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 44px; margin: 0 0 12px; padding: 10px 16px; border: 0; border-radius: 12px; background: var(--cell); color: var(--label); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
 .asbar b { font-weight: 600; }
 .asbar .sw { margin-left: auto; color: var(--blue); }
+.asbar .as-sub { display: block; margin-top: 2px; font-size: 13px; color: var(--label-2); }
 .plist { margin-top: 14px; border-top: .5px solid var(--sep); }
 .prow { display: flex; align-items: center; gap: 10px; padding: 12px 0 2px; }
 .prow + .prow { margin-top: 10px; border-top: .5px solid var(--sep); }
@@ -416,13 +417,19 @@ const money = (v, cur) => cur === 'tb' ? tbStr(v) : nf0.format(Math.round(v)) + 
 const moneyFull = (v, cur) => cur === 'tb' ? tbStr(v) + '天幣' : money(v, cur);
 const signed = (v, cur) => v > 0 ? '+' + money(v, cur) : v < 0 ? '−' + money(-v, cur) : '0';
 const cls = v => v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero';
-// 直接填天幣；有人打「500萬」或「500w」也認得
+// 直接填天幣；有人打「500萬」「500w」，或照首頁的寫法打「45萬8500」「1億500萬」也認得
 function parseAmt(s, cur) {
-  let t = String(s).replace(/[,，\s]/g, ''), mul = 1;
-  if (cur === 'tb' && /[萬wW]$/.test(t)) { mul = 1e4; t = t.slice(0, -1); }
+  const t = String(s).replace(/[,，\s]/g, '').replace(/(天幣|元)$/, '');
+  if (cur === 'tb') {
+    const m = t.replace(/[wW]/g, '萬').match(/^(?:(\d+(?:\.\d+)?)億)?(?:(\d+(?:\.\d+)?)萬)?(\d+(?:\.\d+)?)?$/);
+    if (m && (m[1] || m[2])) {
+      const v = (+(m[1] || 0)) * 1e8 + (+(m[2] || 0)) * 1e4 + (+(m[3] || 0));
+      return v > 0 ? Math.round(v) : 0;
+    }
+  }
   const v = parseFloat(t);
   if (!isFinite(v) || v <= 0) return 0;
-  return Math.round(v * mul);
+  return Math.round(v);
 }
 const fKey = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
 const fDay = new Intl.DateTimeFormat('zh-TW', { timeZone: TZ, month: 'long', day: 'numeric', weekday: 'short' });
@@ -647,6 +654,15 @@ function a2hsTip() {
 }
 
 /* ---------- 畫面：帳本 ---------- */
+// 切換那一條的小字：另一隻現在的錢，算法跟切換過去後首頁一樣
+function charSay(c) {
+  let pay = 0, recv = 0, nt = 0;
+  for (const y of NAMES) if (y !== c) { const t = bal(c, y, 'tb'); if (t < 0) pay -= t; else recv += t; nt += bal(c, y, 'nt'); }
+  const net = recv - pay, parts = [];
+  if (pay || recv) parts.push(`天幣${pay && recv ? '相抵後' : ''}${net < 0 ? `要給 ${money(-net, 'tb')}` : net > 0 ? `要收 ${money(net, 'tb')}` : '剛好打平'}`);
+  if (nt) parts.push(`台幣${nt < 0 ? `要給 ${money(-nt, 'nt')}` : `要收 ${money(nt, 'nt')}`}`);
+  return `${c}：${parts.length ? parts.join('、') : '都結清了'}`;
+}
 function vLedger() {
   const A = S.as, multi = myChars().length > 1;
   const rows = NAMES.filter(p => p !== A).map(y => ({ y, tb: bal(A, y, 'tb'), nt: bal(A, y, 'nt') })).filter(r => r.tb || r.nt);
@@ -657,8 +673,8 @@ function vLedger() {
   const openItems = S.items.filter(i => itemOpen(i) && mineItem(i)).length;
   const nc = newCounts(S.me);
   let h = a2hsTip();
-  // 同一個網址有好幾隻角色：最上面寫現在用哪一隻，點一下就能換
-  if (multi) h += `<button class="asbar" type="button" data-act="me">現在用 <b>${esc(A)}</b> 記帳<span class="sw">切換</span>${CHEV}</button>`;
+  // 同一個網址有好幾隻角色：最上面寫現在用哪一隻，點一下就能換；下面一行小字寫其他隻現在的錢
+  if (multi) h += `<button class="asbar" type="button" data-act="me"><span class="as-main">現在用 <b>${esc(A)}</b> 記帳<span class="as-sub">${esc(myChars().filter(c => c !== A).map(charSay).join('；'))}</span></span><span class="sw">切換</span>${CHEV}</button>`;
   const head = pay && recv ? (net < 0 ? '收支相抵後，你要給' : net > 0 ? '收支相抵後，別人要給你' : '收支相抵後剛好打平') : pay ? '你總共要給' : '總共要給你';
   // 天幣一張卡；台幣另外一張卡，有台幣要結的才出現。一張卡只有一種錢
   // 天幣結清時大卡片縮成一行（台幣也結清就一起說）；還沒有任何帳時改成告訴他怎麼開始
@@ -713,7 +729,7 @@ function orderCell(o) {
     <button class="ohead" type="button" data-act="order" data-id="${o.id}">${ico('cart', 'indigo')}<span class="main"><span class="t">${esc(o.item)}</span><span class="s">${esc(agentMe ? `${buyer} 給你的代購金` : `你給 ${agent} 的代購金`)}</span></span><span class="s">明細</span>${CHEV}</button>
     ${ended ? '<p class="s">已經結算</p>' : `<div class="prog${left < 0 ? ' over' : ''}"><i style="width:${pct.toFixed(1)}%"></i></div>
     <p class="s">已用 ${mf(sp)} / ${mf(o.amt)} · ${left >= 0 ? `剩 <b>${mf(left)}</b>` : `<b class="neg">超過 ${mf(-left)}</b>`}</p>`}
-    <p class="s">收了 ${bought} ${u} · ${agentMe ? '還沒交' : '還沒交給你'} <b>${undel} ${u}</b></p>
+    <p class="s">收了 ${bought} ${u} · ${agentMe ? `還沒交給 ${esc(buyer)}` : '還沒交給你'} <b>${undel} ${u}</b></p>
     ${acts ? `<div class="row">${acts}</div>` : ''}
   </div>`;
 }
@@ -723,7 +739,7 @@ function vItems() {
   const live = S.items.filter(i => i.status !== 'void');
   const byNew = (a, b) => (a.t < b.t ? 1 : -1);
   const open = live.filter(itemOpen).sort(byNew), done = live.filter(i => !itemOpen(i)).sort(byNew);
-  let h = group('還在身上', open.length ? open.map(itemCell).join('') : '<div class="cell"><span class="s">物品都處理完了。打到寶時按右下角的「＋」。</span></div>');
+  let h = group('還沒處理', open.length ? open.map(itemCell).join('') : '<div class="cell"><span class="s">物品都處理完了。打到寶時按右下角的「＋」。</span></div>');
   if (done.length) h += group('已處理', done.map(itemCell).join(''));
   h += '<p class="foot">物品賣掉之前不算錢。點一下物品，可以記「賣掉了」或「留著自己用」。同一種物品可以分好幾次賣，每次記那次的價錢。</p>';
   return h;
@@ -759,6 +775,8 @@ function badgesFor(x, voided) {
   const f = newFlags(x, S.me);
   return waitBadge(x) + (voided ? '<span class="badge gray">已作廢</span>' : '') + (f.add || f.vd ? `<span class="badge new">${f.vd && !f.add ? '新作廢' : '新'}</span>` : '');
 }
+// 紀錄每一筆的時間（同一天兩筆一樣的才分得出來）；補記的沒有真正的時間
+const whenOf = x => (x.seed ? '補記' : hm(x.t));
 function logCell(x) {
   const me = S.as;
   if (x.k === 'e') {
@@ -767,14 +785,14 @@ function logCell(x) {
     const r = e.type === 'move' ? '' : e.type === 'deliver' ? `<span class="r dim">${e.qty} ${unitOf(e.item)}</span>`
       : `<span class="r${e.type === 'order' || e.type === 'obuy' || isPending(e) ? ' dim' : ''}">${money(e.amt, e.cur)}</span>`;
     const bd = badgesFor(x, !!e.voided);
-    return `<button class="cell tap ic-row lrow${e.voided ? ' void' : ''}" type="button" data-act="rec" data-id="${e.id}">${ico(icn, col)}<span class="main"><span class="t">${esc(title(e))}</span>${sub ? `<span class="s">${esc(sub)}</span>` : ''}${bd ? `<span class="bdg">${bd}</span>` : ''}</span>${r}</button>`;
+    return `<button class="cell tap ic-row lrow${e.voided ? ' void' : ''}" type="button" data-act="rec" data-id="${e.id}">${ico(icn, col)}<span class="main"><span class="t">${esc(title(e))}</span><span class="s">${esc(whenOf(e) + (sub ? ' · ' + sub : ''))}</span>${bd ? `<span class="bdg">${bd}</span>` : ''}</span>${r}</button>`;
   }
   const i = x.i;
   if (x.k === 'add') {
     const v = i.status === 'void', bd = badgesFor(x, v);
-    return `<button class="cell tap ic-row lrow${v ? ' void' : ''}" type="button" data-act="item" data-item="${i.id}">${ico('gem', 'orange')}<span class="main"><span class="t">打到「${esc(i.name)}」${i.qty > 1 ? ` ×${i.qty}` : ''}</span><span class="s">在 ${esc(i.holder)} 身上 · ${i.owners.length} 人有份</span>${bd ? `<span class="bdg">${bd}</span>` : ''}</span>${CHEV}</button>`;
+    return `<button class="cell tap ic-row lrow${v ? ' void' : ''}" type="button" data-act="item" data-item="${i.id}">${ico('gem', 'orange')}<span class="main"><span class="t">打到「${esc(i.name)}」${i.qty > 1 ? ` ×${i.qty}` : ''}</span><span class="s">${whenOf(i)} · 在 ${esc(i.holder)} 身上 · ${i.owners.length} 人有份</span>${bd ? `<span class="bdg">${bd}</span>` : ''}</span>${CHEV}</button>`;
   }
-  return `<button class="cell tap ic-row lrow" type="button" data-act="item" data-item="${i.id}">${ico('box', 'gray')}<span class="main"><span class="t">「${esc(i.name)}」交給 ${esc(i.owners[0])}</span></span>${CHEV}</button>`;
+  return `<button class="cell tap ic-row lrow" type="button" data-act="item" data-item="${i.id}">${ico('box', 'gray')}<span class="main"><span class="t">「${esc(i.name)}」交給 ${esc(i.owners[0])}</span><span class="s">${hm(x.t)}</span></span>${CHEV}</button>`;
 }
 
 /* ---------- 新增：選單和表單 ---------- */
@@ -1082,7 +1100,7 @@ function sheetHTML(ctx) {
       const x = ctx.cands[ctx.sel], pay = x.from === me;
       let b = '<form id="f" novalidate>';
       if (ctx.cands.length > 1) b += group('', `<div class="cell">${seg('cand', ctx.cands.map((_, i) => String(i)), String(ctx.sel), i => { const c = ctx.cands[+i]; return `${c.from === me ? c.to : c.from}・${CUR[c.cur]}`; })}</div>`);
-      b += group(pay ? `你轉給 ${esc(x.to)} 多少？` : `${esc(x.from)} 轉給你多少？`, `<div class="cell amt-cell"><input id="s-amt" type="text" inputmode="decimal" autocomplete="off" value="${x.amt}" aria-label="金額"><span class="u">${x.cur === 'tb' ? '天幣' : '元'}</span></div>`, '<span id="s-hint"></span>');
+      b += group(pay ? `你轉給 ${esc(x.to)} 多少？` : `${esc(x.from)} 轉給你多少？`, `<div class="cell amt-cell"><input id="s-amt" type="text" inputmode="decimal" autocomplete="off" value="${x.cur === 'tb' ? tbStr(x.amt) : x.amt}" aria-label="金額"><span class="u">${x.cur === 'tb' ? '天幣' : '元'}</span></div>`, '<span id="s-hint"></span>');
       b += tail('s') + '</form>';
       return shell(pay ? '我轉了' : '我收到了', b, { right: '記下', rightId: 's-ok', form: true });
     }
