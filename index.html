@@ -368,7 +368,7 @@ async function api(action, body) {
   return data;
 }
 function applyData(d) {
-  S.me = d.me; M = d.members; S.seen = { [d.me]: d.seen || '' }; S.admin = !!d.admin;
+  S.me = d.me; M = d.members; S.seen = { [d.me]: d.seen || '' }; S.admin = !!d.admin; S.agree = d.agree !== false;
   AL = d.alias && typeof d.alias === 'object' ? d.alias : {};
   NAMES = M.flatMap(p => [p, ...Object.keys(AL).filter(a => AL[a] === p)]);
   let as = S.as;
@@ -519,13 +519,13 @@ function newCounts(me) {
   return { a, v, by: NAMES.filter(p => by.has(p)) };
 }
 
-/* ---------- 同意：會讓別人要多給或少收的帳，要那個人同意才算 ---------- */
+/* ---------- 同意：會讓別人要多給或少收的帳，要那個人同意才算（後台說 agree:false 時都不用同意） ---------- */
 const waitOf = e => e.wait || [];
 const isPending = e => !e.voided && waitOf(e).length > 0 && !e.voidReq;
 const waitingMe = e => !e.voided && waitOf(e).some(isMe);
 const waitingOthers = e => !e.voided && waitOf(e).length > 0 && !waitOf(e).some(isMe) && isMe(e.voidReq ? e.voidReq.by : e.by);
-const needAgree = e => (S.admin ? [] : [...new Set(rawFlows(e).filter(([c, d]) => !isMe(d) && who(c) !== who(d)).map(([, d]) => d))]);
-const needAgreeVoid = e => (S.admin ? [] : [...new Set(rawFlows(e).filter(([c, d]) => !isMe(c) && who(c) !== who(d)).map(([c]) => c))]);
+const needAgree = e => (S.admin || !S.agree ? [] : [...new Set(rawFlows(e).filter(([c, d]) => !isMe(d) && who(c) !== who(d)).map(([, d]) => d))]);
+const needAgreeVoid = e => (S.admin || !S.agree ? [] : [...new Set(rawFlows(e).filter(([c, d]) => !isMe(c) && who(c) !== who(d)).map(([c]) => c))]);
 // 轉了還沒同意的錢：a 轉給 b、等 b 同意的金額
 const pendRepay = (a, b, cur) => S.entries.filter(e => isPending(e) && e.type === 'repay' && e.from === a && e.to[0] === b && e.cur === cur).reduce((s, e) => s + e.amt, 0);
 const pendT = e => (e.voidReq ? e.voidReq.t : e.t);
@@ -679,7 +679,7 @@ function vLedger() {
   if (openItems) links.push(`<button class="cell tap ic-row" type="button" data-act="tab" data-tab="items">${ico('gem', 'orange')}<span class="main"><span class="t">還沒處理的物品</span></span><span class="s">${openItems} 件</span>${CHEV}</button>`);
   if (links.length) h += group('', links.join(''));
   if (orders.length) h += group('代購中', orders.map(orderCell).join(''), '代購金在結算前不算在上面的錢裡；收完按「結算」，剩下或超過的錢才會算進來。');
-  h += `<p class="foot">${S.admin ? '你記的馬上算。別人記的如果對你不利，要你同意才算進金額。' : '會讓別人要多給或少收的，要對方同意才算進金額；其他的記下就算數。'}記錯了就到「紀錄」點那一筆。${rows.length > 1 ? '每一隻角色的錢分開算、各自結清；最上面的大字只是合計，轉帳時還是每一隻各自按「我轉了」或「我收到了」。' : ''}</p>`;
+  h += `<p class="foot">${!S.agree ? '記了就算，不用等對方同意。' : S.admin ? '你記的馬上算。別人記的如果對你不利，要你同意才算進金額。' : '會讓別人要多給或少收的，要對方同意才算進金額；其他的記下就算數。'}記錯了就到「紀錄」點那一筆。${rows.length > 1 ? '每一隻角色的錢分開算、各自結清；最上面的大字只是合計，轉帳時還是每一隻各自按「我轉了」或「我收到了」。' : ''}</p>`;
   return h;
 }
 // 跟某一隻角色之間、某一種錢的帳：一行（點左邊看明細，右邊是「我轉了／我收到了」，只管這一種錢）
