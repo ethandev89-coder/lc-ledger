@@ -101,6 +101,7 @@ h1, h2, p { margin: 0; }
 .hero .n { margin-top: 2px; font-size: 46px; font-weight: 700; line-height: 1.1; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
 .hero .n small { margin-left: 6px; font-size: 17px; font-weight: 600; color: var(--label-2); letter-spacing: 0; }
 .hero .nt { margin-top: 8px; font-size: 15px; color: var(--label-2); }
+.hero .sumnote { margin-top: 10px; padding: 8px 12px; border-radius: 10px; background: var(--blue-tint); font-size: 13px; color: var(--label-2); }
 .asbar { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 44px; margin: 0 0 12px; padding: 10px 16px; border: 0; border-radius: 12px; background: var(--cell); color: var(--label); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
 .asbar b { font-weight: 600; }
 .asbar .sw { margin-left: auto; color: var(--blue); }
@@ -117,6 +118,7 @@ h1, h2, p { margin: 0; }
 .grp-b.ntcard { padding: 0 18px 12px; border-radius: 16px; }
 .link { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; margin-top: 4px; padding: 0; border: 0; background: none; color: var(--blue); font-size: 15px; cursor: pointer; }
 .row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.row.oacts { margin: -14px 0 26px; padding: 0 4px; }
 .pos { color: var(--green-t); }
 .neg { color: var(--red-t); }
 .zero { color: var(--label-2); }
@@ -199,6 +201,9 @@ button.cell { border: 0; background: none; text-align: left; cursor: pointer; }
 .sum { margin: 0 0 10px; padding: 12px 14px; border-radius: 12px; background: var(--blue-tint); font-size: 15px; line-height: 1.45; }
 .sum .why { display: block; margin-top: 4px; font-size: 13px; color: var(--label-2); }
 .need { min-height: 1.4em; padding: 0 16px; font-size: 13px; color: var(--label-2); }
+.need.warn { color: var(--red-t); }
+.grp.miss .grp-b { box-shadow: 0 0 0 2px var(--red-t); }
+.grp.miss .grp-h { color: var(--red-t); }
 .dhead { display: flex; align-items: center; gap: 12px; margin: 4px 4px 18px; }
 .dhead .ic { width: 44px; height: 44px; border-radius: 11px; }
 .dhead .ic svg { width: 24px; height: 24px; }
@@ -685,6 +690,7 @@ function vLedger() {
   if (pay || recv) {
     h += `<section class="hero" aria-label="天幣"><p class="k">${head}</p><p class="n ${cls(net)}">${money(Math.abs(net), 'tb')}<small>天幣</small></p>`;
     if (pay && recv) h += `<p class="nt">你要給 <b class="neg">${money(pay, 'tb')}</b> · 別人要給你 <b class="pos">${money(recv, 'tb')}</b></p>`;
+    if (tbRows.length > 1) h += '<p class="sumnote">這是合計，轉帳照下面每一行各自按</p>';
     if (tbRows.length) h += `<div class="plist">${tbRows.map(r => prow(r.y, r.tb, 'tb')).join('')}</div>`;
     h += '</section>';
   } else if (!S.entries.length && !S.items.length) {
@@ -705,7 +711,7 @@ function vLedger() {
   if (openItems) links.push(`<button class="cell tap ic-row" type="button" data-act="tab" data-tab="items">${ico('gem', 'orange')}<span class="main"><span class="t">還沒處理的物品</span></span><span class="s">${openItems} 件</span>${CHEV}</button>`);
   if (links.length) h += group('', links.join(''));
   if (orders.length) h += group('代購中', orders.map(orderCell).join(''), '代購金在結算前不算在上面的錢裡；收完按「結算」，剩下或超過的錢才會算進來。');
-  h += `<p class="foot">${!S.agree ? '記了就算，不用等對方同意。' : S.admin ? '你記的馬上算。別人記的如果對你不利，要你同意才算進金額。' : '會讓別人要多給或少收的，要對方同意才算進金額；其他的記下就算數。'}記錯了就到「紀錄」點那一筆。${rows.length > 1 ? '每一隻角色的錢分開算、各自結清；最上面的大字只是合計，轉帳時還是每一隻各自按「我轉了」或「我收到了」。' : ''}</p>`;
+  h += `<p class="foot">${!S.agree ? '記了就算，不用等對方同意。' : S.admin ? '你記的馬上算。別人記的如果對你不利，要你同意才算進金額。' : '會讓別人要多給或少收的，要對方同意才算進金額；其他的記下就算數。'}記錯了就到「紀錄」點那一筆。</p>`;
   return h;
 }
 // 跟某一隻角色之間、某一種錢的帳：一行（點左邊看明細，右邊是「我轉了／我收到了」，只管這一種錢）
@@ -716,10 +722,9 @@ function prow(y, v, cur) {
     : `<button class="btn btn-tint btn-sm" type="button" data-act="settle" data-dir="recv" data-with="${esc(y)}" data-cur="${cur}">我收到了</button>`;
   return `<div class="prow"><button class="pmain" type="button" data-act="calc" data-with="${esc(y)}"><span class="pn">${esc(y)}</span><span class="ps">${v < 0 ? '你要給' : '要給你'} · <b>明細 ›</b>${paying ? `<span class="pw">已轉 ${money(paying, cur)}，等對方同意</span>` : getting ? `<span class="pw">對方說已轉 ${money(getting, cur)}，等你同意</span>` : ''}</span></button><span class="pa ${cls(v)}">${money(Math.abs(v), cur)}</span>${btn}</div>`;
 }
-function orderCell(o) {
-  const u = unitOf(o.item), agent = o.to[0], buyer = o.from, mf = v => money(v, o.cur), agentMe = agent === S.as;
-  const sp = spentOf(o), left = o.amt - sp, bought = boughtOf(o), undel = bought - deliveredOf(o), ended = !!endOf(o);
-  const pct = Math.min(100, o.amt ? sp / o.amt * 100 : 0);
+// 代購的按鈕：首頁的代購卡和代購明細都用這一組
+function orderActs(o) {
+  const u = unitOf(o.item), agentMe = o.to[0] === S.as, undel = boughtOf(o) - deliveredOf(o), ended = !!endOf(o);
   let acts = '';
   if (agentMe) {
     if (!ended) acts += `<button class="btn btn-fill btn-sm" type="button" data-act="o-buy" data-id="${o.id}">收了一批</button>`;
@@ -728,6 +733,13 @@ function orderCell(o) {
   } else if (undel > 0) {
     acts += `<button class="btn btn-tint btn-sm" type="button" data-act="o-deliver" data-id="${o.id}">收到幾${u}</button>`;
   }
+  return acts;
+}
+function orderCell(o) {
+  const u = unitOf(o.item), agent = o.to[0], buyer = o.from, mf = v => money(v, o.cur), agentMe = agent === S.as;
+  const sp = spentOf(o), left = o.amt - sp, bought = boughtOf(o), undel = bought - deliveredOf(o), ended = !!endOf(o);
+  const pct = Math.min(100, o.amt ? sp / o.amt * 100 : 0);
+  const acts = orderActs(o);
   return `<div class="cell ocell">
     <button class="ohead" type="button" data-act="order" data-id="${o.id}">${ico('cart', 'indigo')}<span class="main"><span class="t">${esc(o.item)}</span><span class="s">${esc(agentMe ? `${buyer} 給你的代購金` : `你給 ${agent} 的代購金`)}</span></span><span class="s">明細</span>${CHEV}</button>
     ${ended ? '<p class="s">已經結算</p>' : `<div class="prog${left < 0 ? ' over' : ''}"><i style="width:${pct.toFixed(1)}%"></i></div>
@@ -885,14 +897,14 @@ function readForm(ctx) {
 function draftEval(ctx) {
   const { type, d } = ctx, L = LABELS[type], Q = qtyInfo(ctx);
   const item = ctx.item ? ctx.item.name : d.item;
-  if (L.item && !d.item) return { need: `還沒填：${L.item}` };
-  if (!d.from) return { need: `還沒填：${L.from}` };
-  if (L.to && !d.to.length) return { need: `還沒填：${L.to}` };
+  if (L.item && !d.item) return { need: `還沒填：${L.item}`, field: 'item' };
+  if (!d.from) return { need: `還沒填：${L.from}`, field: 'from' };
+  if (L.to && !d.to.length) return { need: `還沒填：${L.to}`, field: 'to' };
   let qty = 1;
   if (Q.show) {
     qty = parseInt(d.qty, 10);
-    if (!(qty >= 1)) return { need: `還沒填：${Q.label}` };
-    if (qty > Q.max) return { need: `最多 ${Q.max} ${Q.u}` };
+    if (!(qty >= 1)) return { need: `還沒填：${Q.label}`, field: 'qty' };
+    if (qty > Q.max) return { need: `最多 ${Q.max} ${Q.u}`, field: 'qty' };
   }
   if (type === 'imove') {
     const left = leftOf(ctx.item);
@@ -912,7 +924,7 @@ function draftEval(ctx) {
     e = { type: L.as || type, from: d.from, to: [d.to[0]] };
   }
   Object.assign(e, { amt: parseAmt(d.amt, d.cur), cur: d.cur, item });
-  if (!e.amt) return { need: `還沒填：${L.amt}` };
+  if (!e.amt) return { need: `還沒填：${L.amt}`, field: 'amt' };
   // 直接記「賣掉分錢」時才擋；新增過的東西就算只有一個人有份，也要能記賣掉，東西才會從清單上收起來
   if (type === 'sell' && e.to.every(p => p === e.from)) return { need: '只有錢在他身上的那隻有份，不用分錢' };
   let prev;
@@ -932,9 +944,11 @@ const showSum = (prefix, r) => {
   } else {
     prev.hidden = true; need.textContent = r.need;
   }
-  if (ok && !saving) ok.disabled = !r.ok;
+  if (ok && !saving) ok.disabled = prefix === 'f' ? false : !r.ok; // 記帳表單的「記下」一直能按，按了才說缺什麼
 };
 function refresh(ctx) {
+  sheet.querySelectorAll('.grp.miss').forEach(x => x.classList.remove('miss'));
+  const nd = sheet.querySelector('#f-need'); if (nd) nd.classList.remove('warn');
   readForm(ctx);
   const r = draftEval(ctx), d = ctx.d, q = id => sheet.querySelector('#' + id);
   const sg = q('f-sugg');
@@ -1053,9 +1067,11 @@ function sheetHTML(ctx) {
       const mvs = S.entries.filter(e => e.itemId === i.id && e.type === 'move' && !e.voided);
       if (mvs.length) b += group('轉手紀錄', mvs.map(e => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${esc(e.from)} → ${esc(e.to[0])}</span><span class="s">${md(e.t)} ${hm(e.t)} · ${esc(e.by)} 記的</span></span>${CHEV}</button>`).join(''));
       const acts = [];
-      if (open && loot && mineItem(i)) acts.push(`<button class="cell tap act" type="button" data-act="sell" data-item="${i.id}">賣掉了</button>`, `<button class="cell tap act" type="button" data-act="keep" data-item="${i.id}">留著自己用</button>`, `<button class="cell tap act" type="button" data-act="move" data-item="${i.id}">轉給別人</button>`, `<button class="cell tap act" type="button" data-act="scrap" data-item="${i.id}">報廢</button>`);
+      // 每個動作底下一行說明
+      const actRow = (a, t, sub) => `<button class="cell tap act" type="button" data-act="${a}" data-item="${i.id}"><span class="main"><span class="t">${t}</span><span class="s">${sub}</span></span></button>`;
+      if (open && loot && mineItem(i)) acts.push(actRow('sell', '賣掉了', '賣到的錢，有份的人平分'), actRow('keep', '留著自己用', '有份的人自己留下，講好價錢分給其他人'), actRow('move', '轉給別人', '換別人拿著去賣，不動到錢'), actRow('scrap', '報廢', '不值錢了或用不到，不賣也不分錢'));
       if (open && !loot && mineItem(i)) acts.push(`<button class="cell tap act" type="button" data-act="hand" data-item="${i.id}">已交給 ${esc(i.owners[0])}</button>`);
-      if (acts.length) b += group('', acts.join(''), open && loot ? '留著自己用：有份的人想自己用，先講好價錢，就當作用這個價錢買下，錢分給其他有份的人。轉給別人：換成別人拿著，之後由對方賣，不會動到錢。報廢：不值錢了或用不到，不賣也不分錢，收進「已處理」。' : '');
+      if (acts.length) b += group('', acts.join(''));
       if (canVoidItem(i)) b += group('', `<button class="cell tap danger" type="button" data-act="void" data-item="${i.id}">作廢這件物品</button>`);
       return shell(esc(i.name), b, { left: '', right: '完成' });
     }
@@ -1132,10 +1148,12 @@ function sheetHTML(ctx) {
       const row = (e, t, r) => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${t}</span><span class="s">${esc(when(e))} · ${esc(e.by)} 記的</span></span>${r ? `<span class="r">${r}</span>` : ''}${CHEV}</button>`;
       let b = `<div class="dhead">${ico('cart', 'indigo')}<div class="main"><p class="dt">${esc(o.item)}</p><p class="ds">${esc(buyer)} 給 ${esc(agent)} 的代購金</p></div></div>`;
       b += group('', kv('代購金', moneyFull(o.amt, o.cur), 'strong') + kv('已用', moneyFull(sp, o.cur)) + kv(left >= 0 ? '剩' : '超過', moneyFull(Math.abs(left), o.cur)) + kv('收了', `${boughtOf(o)} ${u}`) + kv('已交', `${deliveredOf(o)} ${u}`) + kv('狀態', end ? '已結算' : '還在收'));
+      const oa = orderActs(o);
+      if (oa) b += `<div class="row oacts">${oa}</div>`;
       b += group(`每一批（${buys.length}）`, buys.length ? buys.map(e => row(e, `${e.qty} ${u} × 每${u} ${money(e.unit, e.cur)}`, money(e.amt, e.cur))).join('') : '<div class="cell"><span class="s">還沒收到任何一批。</span></div>');
       if (dels.length) b += group('交貨', dels.map(e => row(e, `交 ${e.qty} ${u}`, '')).join(''));
       if (end) b += group('結算', row(end, esc(title(end)), money(end.amt, end.cur)));
-      b += group('', row(o, '代購金那一筆', ''), '點一筆可以看詳情或作廢。');
+      b += group('', row(o, '原本給的代購金', money(o.amt, o.cur)), '點一筆可以看詳情或作廢。');
       return shell(esc(o.item), b, { left: '', right: '完成' });
     }
     case 'me': {
@@ -1228,9 +1246,20 @@ async function undo(list) {
     load(true);
   }
 }
+// 沒填完就按「記下」：跳到還沒填的那一欄、標紅；不是哪一欄的問題就跳到最下面那行說明
+function flagMissing(r) {
+  const q = x => sheet.querySelector(x);
+  const el = { item: q('#f-item'), qty: q('#f-qty'), amt: q('#f-amt'), from: q('input[name="from"]'), to: q('input[name="to"]') }[r.field];
+  const box = (el && el.closest('.grp')) || q('#f-need'), need = q('#f-need');
+  if (need) need.classList.add('warn');
+  if (!box) return;
+  if (el) box.classList.add('miss');
+  box.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  if (el && el.type === 'text') el.focus({ preventScroll: true });
+}
 function submitForm(ctx) {
   const r = refresh(ctx);
-  if (!r.ok) return;
+  if (!r.ok) { flagMissing(r); return; }
   const d = ctx.d, payload = { entries: [], items: [] };
   let msg;
   if (ctx.type === 'loot') {
