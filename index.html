@@ -564,7 +564,7 @@ function title(e) {
   switch (e.type) {
     case 'loan': return `${e.from} 借給 ${e.to[0]}`;
     case 'repay': return `${e.from} 還 ${e.to[0]}`;
-    case 'buy': return `${e.from} 幫 ${e.to[0]} 代墊「${e.item}」`;
+    case 'buy': return `${e.from} 幫 ${e.to[0]} 代墊「${e.item}」${q}`;
     case 'order': return `${e.from} 給 ${e.to[0]} 代購金「${e.item}」`;
     case 'obuy': return `${e.from} 收了「${e.item}」${e.qty} ${u}`;
     case 'deliver': return `${e.from} 交給 ${e.to[0]}「${e.item}」${e.qty} ${u}`;
@@ -813,7 +813,7 @@ function logCell(x) {
     const v = i.status === 'void', bd = badgesFor(x, v);
     return `<button class="cell tap ic-row lrow${v ? ' void' : ''}" type="button" data-act="item" data-item="${i.id}">${ico('gem', 'orange')}<span class="main"><span class="t">打到「${esc(i.name)}」${i.qty > 1 ? ` ×${i.qty}` : ''}</span><span class="s">${whenOf(i)} · 在 ${esc(i.holder)} 身上 · ${i.owners.length} 人有份</span>${bd ? `<span class="bdg">${bd}</span>` : ''}</span>${CHEV}</button>`;
   }
-  return `<button class="cell tap ic-row lrow" type="button" data-act="item" data-item="${i.id}">${ico('box', 'gray')}<span class="main"><span class="t">「${esc(i.name)}」交給 ${esc(i.owners[0])}</span><span class="s">${hm(x.t)}</span></span>${CHEV}</button>`;
+  return `<button class="cell tap ic-row lrow" type="button" data-act="item" data-item="${i.id}">${ico('box', 'gray')}<span class="main"><span class="t">「${esc(i.name)}」${i.qty > 1 ? ` ×${i.qty} ` : ''}交給 ${esc(i.owners[0])}</span><span class="s">${hm(x.t)}</span></span>${CHEV}</button>`;
 }
 
 /* ---------- 新增：選單和表單 ---------- */
@@ -850,9 +850,9 @@ function qtyInfo(ctx) {
   const t = ctx.type, it = ctx.item;
   const max = it ? leftOf(it) : 999;
   const u = unitOf(it ? it.name : ctx.d.item || '');
-  const show = t === 'loot' || t === 'sell' || ((t === 'isell' || t === 'ikeep' || t === 'iscrap') && max > 1);
-  const label = t === 'loot' ? '數量' : t === 'sell' ? `賣了幾${u}` : t === 'isell' ? `賣幾${u}` : t === 'iscrap' ? `報廢幾${u}` : `留幾${u}`;
-  const priced = show && (t === 'sell' || t === 'isell' || t === 'ikeep'); // 有數量也有價錢
+  const show = t === 'loot' || t === 'sell' || t === 'buy' || ((t === 'isell' || t === 'ikeep' || t === 'iscrap') && max > 1);
+  const label = t === 'loot' ? '數量' : t === 'sell' ? `賣了幾${u}` : t === 'buy' ? `收了幾${u}` : t === 'isell' ? `賣幾${u}` : t === 'iscrap' ? `報廢幾${u}` : `留幾${u}`;
+  const priced = show && (t === 'sell' || t === 'isell' || t === 'ikeep' || t === 'buy'); // 有數量也有價錢
   return { show, max, u, label, priced };
 }
 function formHTML(ctx) {
@@ -930,6 +930,7 @@ function draftEval(ctx) {
   else {
     if (d.to[0] === d.from) return { need: '兩邊不能是同一個角色' };
     e = { type: L.as || type, from: d.from, to: [d.to[0]] };
+    if (type === 'buy' && qty > 1) e.qty = qty;
   }
   // 選「每張」時填的是一張的價錢，存的還是總價（每張 × 數量）
   const per = Q.priced && !!d.per && qty >= 2, a0 = parseAmt(d.amt, d.cur);
@@ -941,7 +942,7 @@ function draftEval(ctx) {
   if (type === 'order') prev = `${e.to[0]} 先拿著 ${e.from} 的代購金 ${moneyFull(e.amt, e.cur)}，收「${item}」用；每收一批照實際價錢扣，收完再結算。`;
   else {
     prev = effect(e, true);
-    if (type === 'buy' && d.keep) prev += `；「${item}」放進物品清單，在 ${e.from} 身上`;
+    if (type === 'buy' && d.keep) prev += `；「${item}」${qty > 1 ? ` ×${qty} ` : ''}放進物品清單，在 ${e.from} 身上`;
     if ((type === 'isell' || type === 'ikeep') && ctx.item.qty > 1) prev += `（${type === 'isell' ? '賣' : '留'} ${qty} ${Q.u}，還剩 ${Q.max - qty} ${Q.u}）`;
   }
   return { ok: true, e, qty, prev, why: agreeNote(e) };
@@ -1293,7 +1294,7 @@ function submitForm(ctx) {
   } else {
     const e = Object.assign({ id: idFor(ctx, 'e'), note: d.note }, r.e);
     if (ctx.type === 'buy' && d.keep) {
-      const it = { id: idFor(ctx, 'i'), name: e.item, kind: 'buy', qty: 1, holder: e.from, owners: [e.to[0]] };
+      const it = { id: idFor(ctx, 'i'), name: e.item, kind: 'buy', qty: r.qty, holder: e.from, owners: [e.to[0]] };
       payload.items.push(it); e.itemId = it.id;
     } else if (ctx.type === 'sell') {
       const it = { id: idFor(ctx, 'i'), name: e.item, kind: 'loot', qty: r.qty, holder: e.from, owners: e.to.slice(), direct: true };
