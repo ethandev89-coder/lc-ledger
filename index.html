@@ -1562,12 +1562,58 @@ document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && !wrap.hi
   sheet.addEventListener('touchend', end);
   sheet.addEventListener('touchcancel', end);
 })();
-// 回到這個網頁、或每分鐘一次，抓對方新記的帳（有表單打開時先不動）
+/* ---------- 有新版就自己換 ---------- */
+// 網站上的網頁比現在開著的新（網站給的 Last-Modified 比較晚），就重新整理成新版，回到原本那一頁。
+// 有表單打開、正在存、手指正在滑的時候不換；一直開著的視窗要停手一分鐘以上才換，免得正在看的時候畫面突然跳。
+// 同一版只試一次：重新整理後還是舊的就不再試，免得一直重新整理。
+const NEWPAGE_STORE = 'zhangben-newpage';
+const HERE = () => location.href.split('#')[0];
+const PAGE_T = (() => {
+  const m = /^(\d+)\/(\d+)\/(\d+) (\d+):(\d+):(\d+)$/.exec(document.lastModified || ''); // 這一版的時間（瀏覽器照網站給的寫成「月/日/年 時:分:秒」）
+  return m ? new Date(+m[3], m[1] - 1, +m[2], +m[4], +m[5], +m[6]).getTime() : 0;
+})();
+let verAt = 0, lastAct = Date.now(), reloadingPage = false;
+let reloadPage = () => location.reload();
+for (const t of ['pointerdown', 'keydown', 'touchstart', 'wheel']) document.addEventListener(t, () => { lastAct = Date.now(); }, { passive: true, capture: true });
+// how：back 回到這個網頁、start 剛打開、idle 一直開著（五分鐘看一次）、pull 往下拉更新
+async function checkNewPage(how) {
+  const t0 = Date.now(), busy = () => reloadingPage || !wrap.hidden || saving || swiping;
+  if (!PAGE_T || !KEY || busy()) return false;
+  if (how !== 'pull' && t0 - verAt < (how === 'idle' ? 300000 : 30000)) return false;
+  if (how === 'idle' && t0 - lastAct < 60000) return false;
+  verAt = t0;
+  let t = 0;
+  try { const r = await fetch(HERE(), { method: 'HEAD', cache: 'no-store' }); t = Date.parse(r.headers.get('Last-Modified') || '') || 0; } catch (_) { return false; }
+  if (!(t > PAGE_T)) return false;
+  let st = null;
+  try { st = JSON.parse(sessionStorage.getItem(NEWPAGE_STORE) || 'null'); } catch (_) { return false; }
+  if (st && st.t === t) return false;
+  try { await fetch(HERE(), { cache: 'reload' }); } catch (_) {} // 先把新版放進瀏覽器的暫存，重新整理才不會又拿到舊的
+  if (busy()) return false; // 等的時候打開了表單，就下次再換
+  try { sessionStorage.setItem(NEWPAGE_STORE, JSON.stringify({ t, tab: S.tab, logWith: S.logWith || '' })); } catch (_) { return false; } // 記不下來就不自己換
+  reloadingPage = true;
+  reloadPage();
+  return true;
+}
+// 自己換成新版之後，回到原本那一頁（只回一次）
+function restoreNewPage() {
+  try {
+    const st = JSON.parse(sessionStorage.getItem(NEWPAGE_STORE) || 'null');
+    if (!st || st.done) return;
+    st.done = true;
+    sessionStorage.setItem(NEWPAGE_STORE, JSON.stringify(st));
+    if (TABS.includes(st.tab)) { S.tab = st.tab; S.logWith = st.logWith || ''; }
+  } catch (_) {}
+}
+restoreNewPage();
+// 回到這個網頁、或每分鐘一次，抓對方新記的帳（有表單打開時先不動）；也看網頁有沒有新版
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') leaveLog(true);
-  else if (wrap.hidden) load(true);
+  if (document.visibilityState === 'hidden') { if (!reloadingPage) leaveLog(true); }
+  else if (wrap.hidden) { load(true); checkNewPage('back'); }
 });
-setInterval(() => { if (document.visibilityState === 'visible' && wrap.hidden && S.loaded) load(true); }, 60000);
+setInterval(() => { if (document.visibilityState === 'visible' && wrap.hidden && S.loaded) { load(true); checkNewPage('idle'); } }, 60000);
+// 剛打開時也看一次（瀏覽器可能先拿暫存的舊版出來）；打開後還沒動過才換
+setTimeout(() => { if (Date.now() - lastAct >= 2900) checkNewPage('start'); }, 3000);
 
 // 左右滑換分頁（沒開面板時）：畫面跟著手指走，旁邊那一頁同時跟進來；放開後照手速滑到位，拖不夠就彈回去。螢幕最邊邊留給瀏覽器的「上一頁」手勢
 (() => {
@@ -1704,6 +1750,7 @@ setInterval(() => { if (document.visibilityState === 'visible' && wrap.hidden &&
     on = false;
     if (dist > 80) {
       ptr.textContent = '更新中…'; ptr.style.opacity = '1';
+      checkNewPage('pull');
       load().then(good => { ptr.hidden = true; if (good) toast('帳本已更新'); });
     } else ptr.hidden = true;
   }, { passive: true });
