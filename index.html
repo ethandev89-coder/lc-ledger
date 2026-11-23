@@ -147,11 +147,14 @@ button.cell { border: 0; background: none; text-align: left; cursor: pointer; }
 .kv .v.strong { color: var(--label); font-weight: 600; }
 .r { flex: none; margin-left: 4px; text-align: right; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .r.dim { color: var(--label-2); font-weight: 500; }
+.r2 { display: block; margin-top: 1px; font-size: 13px; font-weight: 400; color: var(--label-2); }
+.rr { flex: none; margin-left: 4px; text-align: right; }
 .bdg { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 3px; }
 .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; background: var(--orange-tint); color: var(--orange-t); font-size: 12px; font-weight: 600; }
 .badge.gray { background: var(--fill); color: var(--label-2); }
 .badge.new { background: var(--blue-tint); color: var(--tint-ink); }
 .void .t, .void .r { color: var(--label-3); text-decoration: line-through; }
+.void .r2 { color: var(--label-3); }
 .foot { margin: 0 0 26px; padding: 0 16px; font-size: 13px; line-height: 1.45; color: var(--label-2); }
 .foot.tight { margin-bottom: 14px; }
 .lead { padding: 4px 4px 14px; font-size: 17px; line-height: 1.5; }
@@ -452,6 +455,12 @@ function dayLabel(t) {
   return b;
 }
 const unitOf = name => /卷軸|卷|符|券/.test(name) ? '張' : '個';
+// 好幾張一起賣、留著用或代墊的，算每張多少（除不盡寫「約」）；代購收的那批本來就有寫
+function perUnit(e) {
+  if (!(((e.type === 'split' && !e.scrap) || e.type === 'buy') && e.qty > 1 && e.amt > 0)) return null;
+  return { k: '每' + unitOf(e.item), about: e.amt % e.qty !== 0, v: Math.round(e.amt / e.qty) };
+}
+const perUnitLine = e => { const p = perUnit(e); return p ? `<span class="r2">${p.k}${p.about ? '約' : ''} ${money(p.v, e.cur)}</span>` : ''; };
 
 /* ---------- 算帳：每筆記下就算數 ---------- */
 function shares(e) {
@@ -804,7 +813,7 @@ function logCell(x) {
     const e = x.e, [icn, col] = e.scrap ? ['gem', 'gray'] : TYPE_UI[e.type];
     const sub = (waitingMe(e) && !e.voidReq ? pendSay(e) : '') || myView(e, me) || effect(e, false) || (e.note ? `備註：${e.note}` : '');
     const r = e.type === 'move' || e.scrap ? '' : e.type === 'deliver' ? `<span class="r dim">${e.qty} ${unitOf(e.item)}</span>`
-      : `<span class="r${e.type === 'order' || e.type === 'obuy' || isPending(e) ? ' dim' : ''}">${money(e.amt, e.cur)}</span>`;
+      : `<span class="r${e.type === 'order' || e.type === 'obuy' || isPending(e) ? ' dim' : ''}">${money(e.amt, e.cur)}${perUnitLine(e)}</span>`;
     const bd = badgesFor(x, !!e.voided);
     return `<button class="cell tap ic-row lrow${e.voided ? ' void' : ''}" type="button" data-act="rec" data-id="${e.id}">${ico(icn, col)}<span class="main"><span class="t">${esc(title(e))}</span><span class="s">${esc(whenOf(e) + (sub ? ' · ' + sub : ''))}</span>${bd ? `<span class="bdg">${bd}</span>` : ''}</span>${r}</button>`;
   }
@@ -1089,7 +1098,7 @@ function sheetHTML(ctx) {
       if (open) rows.push(kv('在誰身上', i.holder));
       rows.push(kv('誰記的', i.seed ? `${i.by}（補記）` : `${i.by} · ${md(i.t)} ${hm(i.t)}`));
       b += group('', rows.join(''));
-      if (ss.length) b += group('處理紀錄', ss.map(e => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${e.scrap ? '報廢' : e.kept ? `${esc(e.from)} 留著用` : '賣掉'} ${e.qty || 1} ${u}</span><span class="s">${e.scrap ? '不分錢' : e.kept ? '講好的價錢' : `錢在 ${esc(e.from)} 身上`}</span></span><span class="s">${e.scrap ? '' : money(e.amt, e.cur)}</span>${CHEV}</button>`).join(''));
+      if (ss.length) b += group('處理紀錄', ss.map(e => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${e.scrap ? '報廢' : e.kept ? `${esc(e.from)} 留著用` : '賣掉'} ${e.qty || 1} ${u}</span><span class="s">${e.scrap ? '不分錢' : e.kept ? '講好的價錢' : `錢在 ${esc(e.from)} 身上`}</span></span><span class="s rr">${e.scrap ? '' : money(e.amt, e.cur) + perUnitLine(e)}</span>${CHEV}</button>`).join(''));
       const mvs = S.entries.filter(e => e.itemId === i.id && e.type === 'move' && !e.voided);
       if (mvs.length) b += group('轉手紀錄', mvs.map(e => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${esc(e.from)} → ${esc(e.to[0])}</span><span class="s">${md(e.t)} ${hm(e.t)} · ${esc(e.by)} 記的</span></span>${CHEV}</button>`).join(''));
       const acts = [];
@@ -1106,6 +1115,8 @@ function sheetHTML(ctx) {
       let b = `<div class="dhead">${ico(icn, col)}<div class="main"><p class="dt">${esc(title(e))}</p><p class="ds">${esc(typeLabel(e))}</p></div></div>`;
       const rows = [];
       rows.push(e.type === 'move' ? kv('物品', e.item, 'strong') : e.type === 'deliver' || e.scrap ? kv('數量', `${e.qty} ${unitOf(e.item)}`, 'strong') : kv(e.type === 'order' ? '代購金' : '金額', moneyFull(e.amt, e.cur), 'strong'));
+      const pu = perUnit(e);
+      if (pu) rows.push(kv(pu.k, (pu.about ? '約 ' : '') + moneyFull(pu.v, e.cur)));
       if (mv) rows.push(kv('對你來說', mv));
       else if (eff) rows.push(kv('內容', eff));
       if (e.note) rows.push(kv('備註', e.note));
