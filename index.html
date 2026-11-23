@@ -844,7 +844,7 @@ function newDraft(type) {
   let from = A, to = L.multi ? owners : (two ? [other] : []);
   if (L.me === 'to') { from = two ? other : ''; to = [A]; }
   if (type === 'order' && two) { from = other; to = [A]; } // 通常是對方把錢給你
-  return { from, to, cur: 'tb', amt: '', item: '', note: '', keep: true, qty: '1' };
+  return { from, to, cur: 'tb', amt: '', item: '', note: '', keep: true, qty: '1', per: true }; // 數量 2 以上時價錢預設填每張
 }
 function qtyInfo(ctx) {
   const t = ctx.type, it = ctx.item;
@@ -1422,10 +1422,10 @@ document.addEventListener('click', ev => {
   }
   else if (a === 'sell') {
     const it = findI(b.dataset.item);
-    openSheet({ k: 'form', type: 'isell', item: it, d: { from: it.holder, to: it.owners.slice(), cur: 'tb', amt: '', item: it.name, note: '', keep: false, qty: '1' } });
+    openSheet({ k: 'form', type: 'isell', item: it, d: { from: it.holder, to: it.owners.slice(), cur: 'tb', amt: '', item: it.name, note: '', keep: false, qty: '1', per: true } });
   } else if (a === 'keep') {
     const it = findI(b.dataset.item);
-    openSheet({ k: 'form', type: 'ikeep', item: it, d: { from: it.owners.find(p => p === S.as) || it.owners.find(isMe) || it.owners[0], to: it.owners.slice(), cur: 'tb', amt: '', item: it.name, note: '', keep: false, qty: '1' } });
+    openSheet({ k: 'form', type: 'ikeep', item: it, d: { from: it.owners.find(p => p === S.as) || it.owners.find(isMe) || it.owners[0], to: it.owners.slice(), cur: 'tb', amt: '', item: it.name, note: '', keep: false, qty: '1', per: true } });
   } else if (a === 'scrap') {
     const it = findI(b.dataset.item);
     openSheet({ k: 'form', type: 'iscrap', item: it, d: { from: it.holder, to: it.owners.slice(), cur: 'tb', amt: '', item: it.name, note: '', keep: false, qty: String(leftOf(it)) } });
