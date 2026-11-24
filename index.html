@@ -807,6 +807,8 @@ function badgesFor(x, voided) {
 }
 // 紀錄每一筆的時間（同一天兩筆一樣的才分得出來）；補記的沒有真正的時間
 const whenOf = x => (x.seed ? '補記' : hm(x.t));
+// 物品的處理紀錄：每一批寫幾月幾號幾點記的
+const whenFull = x => (x.seed ? '補記' : `${md(x.t)} ${hm(x.t)}`);
 function logCell(x) {
   const me = S.as;
   if (x.k === 'e') {
@@ -1098,7 +1100,7 @@ function sheetHTML(ctx) {
       if (open) rows.push(kv('在誰身上', i.holder));
       rows.push(kv('誰記的', i.seed ? `${i.by}（補記）` : `${i.by} · ${md(i.t)} ${hm(i.t)}`));
       b += group('', rows.join(''));
-      if (ss.length) b += group('處理紀錄', ss.map(e => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${e.scrap ? '報廢' : e.kept ? `${esc(e.from)} 留著用` : '賣掉'} ${e.qty || 1} ${u}</span><span class="s">${e.scrap ? '不分錢' : e.kept ? '講好的價錢' : `錢在 ${esc(e.from)} 身上`}</span></span><span class="s rr">${e.scrap ? '' : money(e.amt, e.cur) + perUnitLine(e)}</span>${CHEV}</button>`).join(''));
+      if (ss.length) b += group('處理紀錄', ss.map(e => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${e.scrap ? '報廢' : e.kept ? `${esc(e.from)} 留著用` : '賣掉'} ${e.qty || 1} ${u}</span><span class="s">${whenFull(e)} · ${e.scrap ? '不分錢' : e.kept ? '講好的價錢' : `錢在 ${esc(e.from)} 身上`}</span></span><span class="s rr">${e.scrap ? '' : money(e.amt, e.cur) + perUnitLine(e)}</span>${CHEV}</button>`).join(''));
       const mvs = S.entries.filter(e => e.itemId === i.id && e.type === 'move' && !e.voided);
       if (mvs.length) b += group('轉手紀錄', mvs.map(e => `<button class="cell tap" type="button" data-act="rec" data-id="${e.id}"><span class="main"><span class="t">${esc(e.from)} → ${esc(e.to[0])}</span><span class="s">${md(e.t)} ${hm(e.t)} · ${esc(e.by)} 記的</span></span>${CHEV}</button>`).join(''));
       const acts = [];
