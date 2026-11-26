@@ -446,6 +446,8 @@ const fDay = new Intl.DateTimeFormat('zh-TW', { timeZone: TZ, month: 'long', day
 const fHM = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
 const fMD = new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'numeric', day: 'numeric' });
 const dayKey = t => fKey.format(new Date(t));
+// 物品名稱排序：中文照台灣的排法，數字照大小（1樓、11樓、21樓…）
+const NAME_ORDER = new Intl.Collator('zh-TW', { numeric: true });
 const hm = t => fHM.format(new Date(t));
 const md = t => fMD.format(new Date(t));
 function dayLabel(t) {
@@ -770,7 +772,9 @@ function orderCell(o) {
 function vItems() {
   const live = S.items.filter(i => i.status !== 'void');
   const byNew = (a, b) => (a.t < b.t ? 1 : -1);
-  const open = live.filter(itemOpen).sort(byNew), done = live.filter(i => !itemOpen(i)).sort(byNew);
+  // 還沒處理的照名稱排，名稱一樣的新的在前；已處理的照時間，新的在前
+  const byName = (a, b) => NAME_ORDER.compare(a.name, b.name) || byNew(a, b);
+  const open = live.filter(itemOpen).sort(byName), done = live.filter(i => !itemOpen(i)).sort(byNew);
   let h = group('還沒處理', open.length ? open.map(itemCell).join('') : '<div class="cell"><span class="s">物品都處理完了。打到寶時按右下角的「＋」。</span></div>');
   if (done.length) h += group('已處理', done.map(itemCell).join(''));
   h += '<p class="foot">物品賣掉之前不算錢。點一下物品，可以記「賣掉了」或「留著自己用」。同一種物品可以分好幾次賣，每次記那次的價錢。</p>';
