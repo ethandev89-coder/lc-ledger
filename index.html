@@ -772,11 +772,12 @@ function orderCell(o) {
 function vItems() {
   const live = S.items.filter(i => i.status !== 'void');
   const byNew = (a, b) => (a.t < b.t ? 1 : -1);
-  // 還沒處理的照名稱排，名稱一樣的新的在前；已處理的照時間，新的在前
+  // 還沒處理的照名稱排，名稱一樣的新的在前
   const byName = (a, b) => NAME_ORDER.compare(a.name, b.name) || byNew(a, b);
-  const open = live.filter(itemOpen).sort(byName), done = live.filter(i => !itemOpen(i)).sort(byNew);
+  const open = live.filter(itemOpen).sort(byName), done = live.filter(i => !itemOpen(i));
   let h = group('還沒處理', open.length ? open.map(itemCell).join('') : '<div class="cell"><span class="s">物品都處理完了。打到寶時按右下角的「＋」。</span></div>');
-  if (done.length) h += group('已處理', done.map(itemCell).join(''));
+  // 已處理：同一種合成一列（點進去看每一批），只有一批的照舊一列；照名稱排
+  if (done.length) h += group('已處理', doneGroups(done).map(g => (g.items.length > 1 ? groupCell(g) : itemCell(g.items[0]))).join(''));
   h += '<p class="foot">物品賣掉之前不算錢。點一下物品，可以記「賣掉了」或「留著自己用」。同一種物品可以分好幾次賣，每次記那次的價錢。</p>';
   return h;
 }
@@ -788,6 +789,35 @@ function itemCell(i) {
   if (!mineItem(i)) sub += ' · 你沒有份';
   return `<button class="cell tap ic-row" type="button" data-act="item" data-item="${i.id}">${ico(loot ? 'gem' : 'bag', loot ? 'orange' : 'purple')}<span class="main"><span class="t">${esc(i.name)}${i.qty > 1 ? ` <span class="q">×${i.qty}</span>` : ''}</span><span class="s">${esc(sub)}</span></span>${CHEV}</button>`;
 }
+// 已處理的物品：名稱和種類一樣的合成一組，照名稱排；每組裡新記的在前
+function doneGroups(done) {
+  const m = new Map();
+  for (const i of done) {
+    const k = i.kind + '|' + i.name;
+    if (!m.has(k)) m.set(k, { key: k, name: i.name, kind: i.kind, items: [] });
+    m.get(k).items.push(i);
+  }
+  const gs = [...m.values()];
+  gs.forEach(g => g.items.sort((a, b) => (a.t < b.t ? 1 : -1)));
+  return gs.sort((a, b) => NAME_ORDER.compare(a.name, b.name) || (a.kind < b.kind ? 1 : -1));
+}
+// 好幾批加起來：一共幾張、賣了幾張多少錢（天幣、台幣分開寫）、留了幾張、報廢幾張
+function groupTotals(items) {
+  const ss = items.flatMap(salesOf), q = l => l.reduce((s, e) => s + (e.qty || 1), 0), sold = ss.filter(e => !e.kept && !e.scrap);
+  const cash = ['tb', 'nt'].map(c => { const v = sold.filter(e => e.cur === c).reduce((s, e) => s + e.amt, 0); return v ? money(v, c) : ''; }).filter(Boolean).join('＋');
+  return { qty: items.reduce((s, i) => s + i.qty, 0), sold: q(sold), cash, kept: q(ss.filter(e => e.kept)), scrap: q(ss.filter(e => e.scrap)) };
+}
+function groupSub(g) {
+  const u = unitOf(g.name), t = groupTotals(g.items), parts = [];
+  if (g.kind !== 'loot') return `收了 ${t.qty} ${u}，都交了`;
+  if (t.sold) parts.push(`賣了 ${t.sold} ${u}${t.cash ? '，' + t.cash : ''}`);
+  if (t.kept) parts.push(`留了 ${t.kept} ${u}自己用`);
+  if (t.scrap) parts.push(`報廢 ${t.scrap} ${u}`);
+  return parts.join(' · ') || '已處理';
+}
+const groupCell = g => `<button class="cell tap ic-row" type="button" data-act="igroup" data-key="${esc(g.key)}">${ico(g.kind === 'loot' ? 'gem' : 'bag', g.kind === 'loot' ? 'orange' : 'purple')}<span class="main"><span class="t">${esc(g.name)} <span class="q">${g.items.length} 批</span></span><span class="s">${esc(groupSub(g) + (g.items.some(mineItem) ? '' : ' · 你沒有份'))}</span></span>${CHEV}</button>`;
+// 處理完的時間：打寶看最後一筆處理紀錄，代墊看交出的時間
+const doneAt = i => (i.kind === 'loot' ? salesOf(i).reduce((m, e) => (e.t > m ? e.t : m), '') : i.closedT || '');
 
 /* ---------- 畫面：紀錄 ---------- */
 function vLog() {
@@ -1147,6 +1177,21 @@ function sheetHTML(ctx) {
       if (canVoidItem(i)) b += group('', `<button class="cell tap danger" type="button" data-act="void" data-item="${i.id}">作廢這件物品</button>`);
       return shell(esc(i.name), b, { left: '', right: '完成' });
     }
+    case 'igroup': {
+      // 已處理裡同一種的好幾批：上面是加起來的數字，下面每一批點進去看那件物品
+      const g = doneGroups(S.items.filter(i => i.status !== 'void' && !itemOpen(i))).find(x => x.key === ctx.key);
+      if (!g) return shell('已處理', '<p class="foot">找不到這一種，可能剛被作廢了。</p>', { left: '', right: '完成' });
+      const loot = g.kind === 'loot', u = unitOf(g.name), t = groupTotals(g.items), rows = [];
+      let b = `<div class="dhead">${ico(loot ? 'gem' : 'bag', loot ? 'orange' : 'purple')}<div class="main"><p class="dt">${esc(g.name)}</p><p class="ds">已處理 · ${g.items.length} 批，一共 ${t.qty} ${u}</p></div></div>`;
+      if (loot) {
+        if (t.sold) rows.push(kv('賣了', `${t.sold} ${u}${t.cash ? '，' + t.cash : ''}`));
+        if (t.kept) rows.push(kv('留著自己用', `${t.kept} ${u}`));
+        if (t.scrap) rows.push(kv('報廢', `${t.scrap} ${u}`));
+      } else rows.push(kv('交貨', `${t.qty} ${u}都交了`));
+      b += group('', rows.join(''));
+      b += group('每一批', g.items.map(i => { const dt = doneAt(i); return `<button class="cell tap" type="button" data-act="item" data-item="${i.id}"><span class="main"><span class="t">${i.seed ? '' : md(i.t) + ' '}${loot ? '打到' : '收了'} ${i.qty} ${u}${i.seed ? '（補記）' : ''}</span><span class="s">${esc((loot ? soldSummary(i) : `已交給 ${i.owners[0]}`) + (dt ? ` · ${md(dt)} 處理完` : ''))}</span></span>${CHEV}</button>`; }).join(''), '點一批可以看那一批的處理紀錄。');
+      return shell(esc(g.name), b, { left: '', right: '完成' });
+    }
     case 'rec': {
       const e = ctx.e, [icn, col] = e.scrap ? ['gem', 'gray'] : TYPE_UI[e.type], mv = myView(e, me), eff = effect(e, true);
       let b = `<div class="dhead">${ico(icn, col)}<div class="main"><p class="dt">${esc(title(e))}</p><p class="ds">${esc(typeLabel(e))}</p></div></div>`;
@@ -1459,6 +1504,7 @@ document.addEventListener('click', ev => {
   }
   else if (a === 'a2hs-ok') { try { localStorage.setItem(A2HS_KEY, '1'); } catch (_) {} render(); }
   else if (a === 'item') { const it = findI(b.dataset.item); if (it) openSheet({ k: 'item', item: it }); }
+  else if (a === 'igroup') openSheet({ k: 'igroup', key: b.dataset.key });
   else if (a === 'pend') openSheet({ k: 'pend', who: b.dataset.who });
   else if (a === 'agree-yes') agree(b.dataset.id, 'yes', '', b.dataset.from || '');
   else if (a === 'agree-back') agree(b.dataset.id, 'back', '', b.dataset.from || '');
