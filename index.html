@@ -457,7 +457,8 @@ function dayLabel(t) {
   if (k === dayKey(Date.now() - 864e5)) return '昨天 · ' + b;
   return b;
 }
-const unitOf = name => /卷軸|卷|符|券/.test(name) ? '張' : '個';
+// 單位：卷軸寫張；書（魔法書、技術書…）寫本，書箱不算；水晶（精靈水晶…）寫顆，水晶做的裝備不算；其他寫個
+const unitOf = name => /卷軸|卷|符|券/.test(name) ? '張' : /書(\s*[(（]|$)/.test(name) ? '本' : /水晶(\s*[(（]|$)/.test(name) ? '顆' : '個';
 // 好幾張一起賣、留著用或代墊的，算每張多少（除不盡寫「約」）；代購收的那批本來就有寫
 function perUnit(e) {
   if (!(((e.type === 'split' && !e.scrap) || e.type === 'buy') && e.qty > 1 && e.amt > 0)) return null;
@@ -1231,7 +1232,7 @@ function sheetHTML(ctx) {
       const o = ctx.o, u = unitOf(o.item), left = o.amt - spentOf(o), lu = lastUnit(o), unitTxt = o.cur === 'tb' ? '天幣' : '元';
       const b = `<form id="f" novalidate>
         <p class="foot tight">「${esc(o.item)}」：${esc(o.from)} 的代購金 ${moneyFull(o.amt, o.cur)}，${left >= 0 ? `還剩 ${moneyFull(left, o.cur)}` : `已經超過 ${moneyFull(-left, o.cur)}`}。每批價錢可以不一樣。</p>
-        ${group('', `<label class="cell field"><span class="k">這批幾${u}</span><input id="b-qty" type="text" inputmode="numeric" autocomplete="off" placeholder="0"><span class="sfx">${u}</span></label><label class="cell field"><span class="k">每${u}多少</span><input id="b-unit" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="${lu || ''}"><span class="sfx">${unitTxt}</span></label>`, lu ? '每張價錢先帶上一批的，價錢不同就改。' : '')}
+        ${group('', `<label class="cell field"><span class="k">這批幾${u}</span><input id="b-qty" type="text" inputmode="numeric" autocomplete="off" placeholder="0"><span class="sfx">${u}</span></label><label class="cell field"><span class="k">每${u}多少</span><input id="b-unit" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="${lu || ''}"><span class="sfx">${unitTxt}</span></label>`, lu ? `每${u}價錢先帶上一批的，價錢不同就改。` : '')}
         ${group('', `<label class="cell sw"><span class="t">這批也已經交給 ${esc(o.from)} 了</span><input type="checkbox" class="switch" id="b-del"></label>`)}
         ${tail('b')}</form>`;
       return shell('收了一批', b, { right: '記下', rightId: 'b-ok', form: true });
