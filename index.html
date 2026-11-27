@@ -165,6 +165,7 @@ button.cell { border: 0; background: none; text-align: left; cursor: pointer; }
 .prog i { display: block; height: 100%; border-radius: 3px; background: var(--c-indigo); }
 .prog.over i { background: var(--c-red); }
 .ocell .s b { color: var(--label); font-weight: 600; }
+.s b.left { color: var(--label); font-weight: 600; }
 
 .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 20px; border: 0; border-radius: 12px; font-size: 17px; font-weight: 600; cursor: pointer; }
 .btn-sm { min-height: 38px; padding: 0 18px; border-radius: 19px; font-size: 15px; }
@@ -783,11 +784,13 @@ function vItems() {
 }
 function itemCell(i) {
   const u = unitOf(i.name), open = itemOpen(i), loot = i.kind === 'loot';
+  // 還沒處理的不寫 ×幾（那是一共幾張，容易看成還剩幾張），小字裡的剩幾張用深色
   let sub;
-  if (loot) sub = open ? `在 ${i.holder} 身上 · ${i.qty > 1 ? `剩 ${leftOf(i)} ${u}` : '還沒賣'}` : soldSummary(i);
-  else sub = open ? `在 ${i.holder} 身上 · 要交給 ${i.owners[0]}` : `已交給 ${i.owners[0]}`;
+  if (loot) sub = open ? `在 ${esc(i.holder)} 身上 · <b class="left">剩 ${leftOf(i)} ${u}</b>` : esc(soldSummary(i));
+  else sub = open ? `在 ${esc(i.holder)} 身上 · ${i.qty > 1 ? `<b class="left">${i.qty} ${u}</b>` : ''}要交給 ${esc(i.owners[0])}` : `已交給 ${esc(i.owners[0])}`;
   if (!mineItem(i)) sub += ' · 你沒有份';
-  return `<button class="cell tap ic-row" type="button" data-act="item" data-item="${i.id}">${ico(loot ? 'gem' : 'bag', loot ? 'orange' : 'purple')}<span class="main"><span class="t">${esc(i.name)}${i.qty > 1 ? ` <span class="q">×${i.qty}</span>` : ''}</span><span class="s">${esc(sub)}</span></span>${CHEV}</button>`;
+  const q = !open && i.qty > 1 ? ` <span class="q">×${i.qty}</span>` : '';
+  return `<button class="cell tap ic-row" type="button" data-act="item" data-item="${i.id}">${ico(loot ? 'gem' : 'bag', loot ? 'orange' : 'purple')}<span class="main"><span class="t">${esc(i.name)}${q}</span><span class="s">${sub}</span></span>${CHEV}</button>`;
 }
 // 已處理的物品：名稱和種類一樣的合成一組，照名稱排；每組裡新記的在前
 function doneGroups(done) {
